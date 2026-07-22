@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Pending Leads Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy:#0B1E33; --navy2:#142942; --paper:#F4F6F8; --card:#FFFFFF; --line:#E1E6EC;
+    --ink:#101826; --sub:#5C6B7C;
+    --teal:#0E8A83; --teal-l:#CFEEEA;
+    --coral:#E0532F; --coral-l:#FBE2D9;
+    --amber:#C98A1E; --amber-l:#F7E6C6;
+    --purple:#7A5AC9; --purple-l:#E7E0F8;
+    --green:#3E8E5A; --green-l:#DCEFE1;
+    --mono:'IBM Plex Mono',monospace; --sans:'Manrope',-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);}
+  body{padding-bottom:60px;}
+  .wrap{max-width:1280px;margin:0 auto;padding:0 24px;}
+
+  header.top{background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);color:#fff;padding:36px 0 28px;}
+  header.top .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:#8FB4C9;margin-bottom:8px;}
+  header.top h1{font-size:27px;font-weight:800;margin:0 0 6px;letter-spacing:-0.02em;}
+  header.top p.sub{color:#B8C6D6;font-size:13.5px;max-width:620px;line-height:1.5;margin:0 0 18px;}
+
+  .upload-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:12px 16px;}
+  .upload-btn{background:#7FD8CC;color:#0B1E33;font-weight:700;font-size:13px;border:none;border-radius:7px;padding:9px 16px;cursor:pointer;font-family:var(--sans);}
+  .upload-btn:hover{background:#9EE5DB;}
+  .upload-status{font-family:var(--mono);font-size:12px;color:#B8C6D6;}
+  .upload-status.ok{color:#7FD8CC;}
+  #fileInput{display:none;}
+  .as-of{font-family:var(--mono);font-size:11.5px;color:#8FB4C9;margin-left:auto;}
+
+  .controls{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:-24px;position:relative;z-index:2;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;box-shadow:0 6px 20px rgba(16,24,38,0.07);}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--sub);font-weight:700;}
+  .field select, .field input{font-family:var(--sans);font-size:13.5px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);min-width:160px;}
+  .field.grow{flex:1;min-width:200px;}
+  .field.grow input{width:100%;}
+  .field.date input{min-width:150px;font-family:var(--mono);}
+
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:16px;}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px 14px;cursor:pointer;transition:border-color .12s;}
+  .kpi:hover{border-color:var(--teal);}
+  .kpi.active{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal) inset;}
+  .kpi .label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--sub);font-weight:700;margin-bottom:6px;}
+  .kpi .value{font-family:var(--mono);font-size:21px;font-weight:600;}
+  .kpi.all .value{color:var(--ink);}
+  .kpi.overdue .value{color:var(--coral);}
+  .kpi.today .value{color:var(--amber);}
+  .kpi.upcoming .value{color:var(--teal);}
+  .kpi.nodate .value{color:var(--sub);}
+  .kpi.dnpu .value{color:var(--purple);}
+
+  section.table-section{margin-top:18px;}
+  .table-card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .table-toolbar{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--sub);}
+  .table-scroll{overflow-x:auto;max-height:640px;overflow-y:auto;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  thead th{position:sticky;top:0;background:var(--navy);color:#fff;text-align:left;padding:10px 12px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;white-space:nowrap;z-index:1;}
+  thead th:hover{background:var(--navy2);}
+  thead th .arrow{opacity:.5;margin-left:4px;font-size:9px;}
+  tbody td{padding:9px 12px;border-bottom:1px solid #EEF1F4;white-space:nowrap;}
+  tbody tr:hover{background:#F8FAFB;}
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;}
+  .badge.overdue{background:var(--coral-l);color:#8A3418;}
+  .badge.today{background:var(--amber-l);color:#6B4E10;}
+  .badge.upcoming{background:var(--teal-l);color:#0A5A55;}
+  .badge.nodate{background:#EEF0F3;color:var(--sub);}
+  .badge.dnpu{background:var(--purple-l);color:#4B3382;}
+  .mono{font-family:var(--mono);}
+  .empty-state{padding:60px 20px;text-align:center;color:var(--sub);font-size:13.5px;}
+  .empty-state b{color:var(--ink);}
+
+  .footer-note{margin-top:28px;font-size:12px;color:var(--sub);line-height:1.6;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;}
+
+  @media (max-width:900px){
+    .kpis{grid-template-columns:repeat(3,1fr);}
+    .controls{flex-direction:column;align-items:stretch;}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="eyebrow">Clinic Ops · Pending Tickets</div>
+    <h1>Agent Pending Leads Tracker</h1>
+    <p class="sub">Pick your name below to see just your pending tickets — count and full list. Upload a fresh export any morning — once it's uploaded, everyone sees the same data automatically.</p>
+    <div class="upload-row">
+      <button class="upload-btn" onclick="document.getElementById('fileInput').click()">Upload today's file</button>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+      <button class="upload-btn" id="refreshBtn" style="background:transparent;color:#7FD8CC;border:1px solid rgba(127,216,204,0.5);">&#8635; Refresh</button>
+      <span class="upload-status" id="uploadStatus">Loading shared data…</span>
+      <span class="as-of" id="asOfText"></span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="controls">
+    <div class="field">
+      <label>Agent</label>
+      <select id="agentFilter"></select>
+    </div>
+    <div class="field">
+      <label>Channel</label>
+      <select id="channelFilter"></select>
+    </div>
+    <div class="field">
+      <label>Service</label>
+      <select id="serviceFilter"></select>
+    </div>
+    <div class="field date">
+      <label>As of date</label>
+      <input type="date" id="refDate">
+    </div>
+    <div class="field grow">
+      <label>Search</label>
+      <input type="text" id="searchBox" placeholder="Ticket ID, customer name, or phone">
+    </div>
+  </div>
+
+  <div class="kpis" id="kpiRow"></div>
+
+  <section class="table-section">
+    <div class="table-card">
+      <div class="table-toolbar">
+        <span id="tableCount"></span>
+        <span id="tableFilterNote"></span>
+      </div>
+      <div class="table-scroll">
+        <table id="ticketTable">
+          <thead>
+            <tr>
+              <th data-key="id">Ticket ID<span class="arrow"></span></th>
+              <th data-key="agent">Agent<span class="arrow"></span></th>
+              <th data-key="customer">Customer<span class="arrow"></span></th>
+              <th data-key="phone">Phone<span class="arrow"></span></th>
+              <th data-key="service">Service<span class="arrow"></span></th>
+              <th data-key="channel">Channel<span class="arrow"></span></th>
+              <th data-key="followup">Follow-up Date<span class="arrow"></span></th>
+              <th data-key="statusSort">Status<span class="arrow"></span></th>
+              <th data-key="daysOverdue">Days Overdue<span class="arrow"></span></th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer-note">
+    <b>This dashboard is live-linked to your Google Sheet.</b> Whoever updates that Sheet, this page picks it up automatically (it also refreshes itself every few minutes) — no uploads needed. If you ever need to point it at a different sheet, edit <span class="mono" style="background:#EEF0F3;padding:1px 5px;border-radius:4px;">const GOOGLE_SHEET_CSV_URL</span> near the top of the script and re-publish to GitHub Pages.
+    <br><br>Until this file is uploaded to GitHub Pages, "Upload today's file" still works as a local preview only, visible in your browser alone.
+  </div>
+</div>
+
+<script>
+const SEED = [{"agent":"Mrunmayee Nikhade","id":"509510","customer":"Padam Saud","phone":"7022206274","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"398037","customer":"akram .","phone":"9353342677","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"476970","customer":"Sunder Raj Solomon","phone":"9620596971","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"298211","customer":"Preeti Bothra","phone":"9148584408","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"553640","customer":"Devi Dutta","phone":"9903153862","alt":null,"service":"Grooming","followup":"2026-07-20","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"525157","customer":"Murali Prakash","phone":"9035456655","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"533470","customer":"Sneha S","phone":"9035478407","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"230805","customer":"Prahalya SP","phone":"9944542946","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"515469","customer":"Dheena M","phone":"7090541312","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"439714","customer":"bhavana .","phone":"8088113665","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"443","customer":"J PRETHYUSHA","phone":"7207420188","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"574644","customer":"Mahi Shk","phone":"9742691395","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"536018","customer":"Abhi .","phone":"8904455660","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"22089","customer":"Hyder Raza","phone":"917483014772","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"419723","customer":"Chiru P","phone":"919945017164","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"545205","customer":"Bipin Varughese","phone":"919619100782","alt":null,"service":"Grooming","followup":"2026-07-29","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"320283","customer":"ganesh kumar","phone":"919986012703","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"88062","customer":"Deepthi S","phone":"918197959981","alt":null,"service":"Vaccination","followup":"2026-07-20","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Heenakauser","id":"488643","customer":"Harini N","phone":"8431726828","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Heenakauser","id":"537158","customer":"Ash Ash","phone":"7338281142","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Heenakauser","id":"468297","customer":"Ashwin K A","phone":"8660030006","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Heenakauser","id":"495833","customer":"MD Danish","phone":"9141029415","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"315283","customer":"Sujatha Veeru","phone":"916361579626","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Heenakauser","id":"506562","customer":"Yashas H","phone":"7483166232.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Heenakauser","id":"506203","customer":"Yashas S","phone":"6361983608.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Heenakauser","id":"542296","customer":"Vijaya Vija","phone":"7337780051.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Heenakauser","id":"264083","customer":"Vidya H","phone":"9986337770.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Heenakauser","id":"389993","customer":"Sujal T","phone":"7204673351.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Susan","id":"539397","customer":"Manishan Bhat","phone":"9682111071.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"164523","customer":"Travel Mood","phone":"919611853194","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"55464","customer":"Vandita Raipat","phone":"917261827078","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"507277","customer":"Abdur Rahim","phone":"917829872191","alt":null,"service":"Missed capturing","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Heenakauser","id":"523382","customer":"Sumith L","phone":"919380219182","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"335969","customer":"Raghavendra R","phone":"919008688268","alt":null,"service":"Grooming","followup":"2026-07-21","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"528435","customer":"S R Amrutha","phone":"919538290019","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"145349","customer":"Kushi Gombe","phone":"919741671754","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"331858","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-20","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"391443","customer":"Navin Ra","phone":"919042410843","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Mohammed Zahed","id":"90032","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Mohammed Zahed","id":"476877","customer":null,"phone":null,"alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"346010","customer":"Unknown","phone":"+919065515665","alt":null,"service":"Grooming","followup":"2026-07-20","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"411747","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-20","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Mohammed Zahed","id":"403164","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"10503","customer":null,"phone":null,"alt":null,"service":"Not applicable","followup":"2026-07-20","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"414782","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-20","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"131150","customer":null,"phone":null,"alt":null,"service":"Vaccination","followup":"2026-08-02","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Mohammed Zahed","id":"264212","customer":null,"phone":null,"alt":null,"service":"Surgery","followup":"2026-07-20","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"540997","customer":null,"phone":null,"alt":null,"service":"Surgery","followup":"2026-07-19","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Shristi Kesharwani","id":"278039","customer":null,"phone":null,"alt":null,"service":"Not applicable","followup":"2026-07-20","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"446234","customer":"Rhea Choudhury","phone":"917828606868","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Shristi Kesharwani","id":"429538","customer":"Meenakshi choudey","phone":"9078841017","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-21","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"489189","customer":"Unknown","phone":"+918277161729","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Shristi Kesharwani","id":"522766","customer":"Kirtana Srinath","phone":"6364227567.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-19","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shristi Kesharwani","id":"197764","customer":"Bakul Bharadwaj","phone":"9168189922.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-19","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Unassigned","id":"561975","customer":null,"phone":null,"alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Unassigned","id":"478858","customer":null,"phone":null,"alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"537130","customer":"Kavya Ravi","phone":"919886929465","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"97065","customer":"tanusri das","phone":"918910041255","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"165396","customer":"Hajirah Rahman","phone":"919632308521","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"389514","customer":"Anne Raphael","phone":"918123185736","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"179232","customer":"Swathy Murthy","phone":"919341282615","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"528436","customer":"Shivananda  Aradhya","phone":"919663064296","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"459577","customer":"Sowmya M","phone":"918073666979","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"575848","customer":null,"phone":"8861857840","alt":null,"service":"Vaccination","followup":"2026-07-20","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"386598","customer":"Syeeda Uzma Khanum Afnan","phone":"917975950937","alt":null,"service":"Missed capturing","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"350030","customer":"Dinesh PR","phone":"919959061099","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"226041","customer":"Komala S","phone":"918197995504","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"173341","customer":null,"phone":null,"alt":null,"service":"Surgery","followup":"2026-07-20","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"557113","customer":"Rajesh S","phone":"918870521234","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"505376","customer":"Archana Raut","phone":"919730031433","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"558298","customer":"Anand Chandak","phone":"919619696687","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"466793","customer":"Sukanya S","phone":"919535621742","alt":null,"service":"Consultation","followup":"2026-07-24","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"491363","customer":"Anand Chandak","phone":"919619696687","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"538302","customer":null,"phone":null,"alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"510317","customer":"Abhishek G","phone":"917975513579","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"464099","customer":"Khushboo verma","phone":"919916004517","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"305391","customer":"Raveena Shekhar","phone":"919620134138","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"233862","customer":null,"phone":null,"alt":null,"service":"Vaccination","followup":"2026-07-20","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Mohammed Zahed","id":"318268","customer":null,"phone":null,"alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Mohammed Zahed","id":"76165","customer":null,"phone":null,"alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"458713","customer":"Arjun KS","phone":"917907322205","alt":null,"service":"Grooming","followup":"2026-07-21","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Mohammed Zahed","id":"458157","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"546881","customer":"Malavika Kanampara","phone":"917259261157","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"472522","customer":null,"phone":null,"alt":null,"service":"Surgery","followup":"2026-07-20","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Susan","id":"566898","customer":null,"phone":null,"alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-18","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"417265","customer":"Zubair Mohamed","phone":"9035115551","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"529941","customer":"Sathish","phone":"9980720066","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"560958","customer":"Faseen Ishaque","phone":"7025076229","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"568716","customer":"Prabha Gaikwad","phone":"8431978991","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"486894","customer":"Manish Sharma","phone":"8473935032","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"522461","customer":"Shilpi Saini","phone":"9667695759","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"467542","customer":"Loudes Danial","phone":"8883599955","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"567836","customer":"Shivani mohanti","phone":"8861695414","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"541964","customer":"Shubhi Saxena","phone":"9079718641","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"551022","customer":"Adittee Rao","phone":"8095589596","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"496258","customer":"Maneesh sharma","phone":"7338040022","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"510477","customer":"C Sania","phone":"6303315413","alt":null,"service":"Missed capturing","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"350551","customer":"Shashank K","phone":"9008533995","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"220716","customer":"Mukesh Reddy","phone":"9148258665","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"506975","customer":"ankur bisarya","phone":"8285508208","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"328187","customer":"Bushan Kumar","phone":"9008888871","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"493723","customer":"Vijay Vijay","phone":"8867884970","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"364427","customer":"Sultan M","phone":"9790125153","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"354875","customer":"Sanober Yassar","phone":"9727202879","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mohammed Zahed","id":"275014","customer":"Pradeep Sen","phone":"9538901539","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"308148","customer":"Meghana Mahesh","phone":"9980428140","alt":null,"service":"Grooming","followup":"2026-07-20","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"530860","customer":"Keerthi prasad","phone":"7022222206","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"180545","customer":"Sumit Singh Chauhan","phone":"9611107670","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"295152","customer":"Prasad Desai","phone":"8888007900","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"369526","customer":"Akash Rai","phone":"9170777555","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"368515","customer":"Soumita Chakraborty","phone":"9438014092","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"556875","customer":"Monica George","phone":"9677729189","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"407741","customer":"Sushmitha V","phone":"9148793490","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mohammed Zahed","id":"58799","customer":"Rahul Ravi","phone":"8197049336","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mohammed Zahed","id":"318981","customer":"rashmi .","phone":"9206153098","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mohammed Zahed","id":"37228","customer":"Harshitha HR","phone":"8546896102","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mohammed Zahed","id":"186378","customer":"Nawang lhamo","phone":"9980260300","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"548055","customer":"Anusha Kulkarni","phone":"8341046814","alt":null,"service":"Grooming","followup":"2026-07-18","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shristi Kesharwani","id":"565011","customer":"Zeus Gs","phone":"9606030569","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-19","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shristi Kesharwani","id":"490294","customer":null,"phone":null,"alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shristi Kesharwani","id":"420936","customer":"Anish B","phone":"9325386798","alt":null,"service":"Consultation,Grooming","followup":"2026-07-20","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"473340","customer":"Sridhar Adibhatla","phone":"9632030234.0","alt":null,"service":"Grooming","followup":"2026-07-25","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"504370","customer":"Afroz Pasha","phone":"9886172092.0","alt":null,"service":"Grooming","followup":"2026-07-22","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"401579","customer":"Aliya Kouser","phone":"917411684294","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"374976","customer":"Shriniketan Nl","phone":"918197660078","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"357080","customer":null,"phone":null,"alt":null,"service":"Not applicable","followup":"2026-07-18","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"483834","customer":"Praveen S","phone":"919035401815","alt":null,"service":"Missed capturing","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"415995","customer":"Divyani J","phone":"919206356545","alt":null,"service":"Consultation","followup":"2026-07-20","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"198177","customer":"Suresh","phone":"9871468290","alt":null,"service":"Consultation","followup":"2026-07-21","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"516683","customer":"Anurag","phone":"9620466262","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"531899","customer":"Rini","phone":"8884831318","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"73285","customer":"Smitha","phone":"8429011092","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"285758","customer":"Ayush","phone":"8124316160","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"223529","customer":"Harsha","phone":"9900017103","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"512725","customer":"Ranjeeta","phone":"8904716696","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"419252","customer":"Divya","phone":"7042626368","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"549040","customer":"Diksha","phone":"9742688093","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"137634","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-21","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"548734","customer":null,"phone":"9972047081","alt":null,"service":"Vaccination","followup":"2026-07-18","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"364114","customer":null,"phone":"8767821993","alt":null,"service":"Surgery","followup":"2026-07-18","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Susan","id":"57086","customer":null,"phone":null,"alt":null,"service":"Grooming,Vaccination","followup":"2026-07-20","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"480957","customer":null,"phone":null,"alt":null,"service":"Vaccination","followup":"2026-07-18","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"39907","customer":null,"phone":"8126699726","alt":null,"service":"Surgery","followup":"2026-07-18","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"436710","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-20","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"478701","customer":"Jaya Pradha","phone":"9844444580","alt":null,"service":"Grooming","followup":"2026-07-17","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"557441","customer":"Piyush Wankhade","phone":"9921413227","alt":null,"service":"Grooming","followup":"2026-07-30","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"503700","customer":"Prajna Mohanta","phone":"9650822368","alt":null,"service":"Grooming","followup":"2026-07-30","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"395461","customer":"Reni Varghese","phone":"9886392438","alt":null,"service":"Consultation","followup":"2026-07-18","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"412643","customer":null,"phone":"7204518982","alt":null,"service":"Consultation","followup":"2026-07-17","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"499788","customer":"Padam Saud","phone":"7022206274","alt":null,"service":"Consultation","followup":"2026-07-18","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"450145","customer":"Joynul Hoque","phone":"8822480478","alt":null,"service":"Consultation","followup":"2026-07-20","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"534094","customer":"Sandhya Kulkarni","phone":"9591996662.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"298357","customer":"Ramya shree","phone":"9620109520.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"252069","customer":"Manasa Pai","phone":"6360556082.0","alt":null,"service":"Consultation","followup":"2026-07-20","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"236622","customer":"Madhumitha T","phone":"918884338116","alt":null,"service":"Grooming","followup":"2026-07-24","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"523125","customer":"Devika P","phone":"917483965922","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"385394","customer":"Rakhee Nair","phone":"919108402557","alt":null,"service":"Grooming","followup":"2026-07-23","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"356671","customer":"Ranjith M","phone":null,"alt":null,"service":"Grooming","followup":"2026-07-16","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"497696","customer":"Saloni Gag","phone":"9873553353","alt":null,"service":"Grooming","followup":"2026-07-17","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"485264","customer":"Adarsh Singh","phone":"9635977018","alt":null,"service":"Grooming","followup":"2026-07-30","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"534203","customer":"Kushal Shah","phone":"8074433128","alt":null,"service":"Consultation","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"481147","customer":"Kunal Baliya","phone":"8884773824","alt":null,"service":"Consultation","followup":"2026-07-20","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"515999","customer":"Mukul S","phone":"919844311111","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"497947","customer":"A R Gagan","phone":"8431998686.0","alt":null,"service":"Grooming","followup":"2026-07-20","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"248625","customer":"Pooja Kishan","phone":"7838925050.0","alt":null,"service":"Grooming","followup":"2026-07-16","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"501639","customer":"Chetana Suresh","phone":"9148224322.0","alt":null,"service":"Grooming","followup":"2026-07-30","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"363778","customer":"Binod Kushmi","phone":"9172513194.0","alt":null,"service":"Grooming","followup":"2026-07-17","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"175345","customer":"Rahul R","phone":"7483855944.0","alt":null,"service":"Grooming","followup":"2026-07-24","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"346202","customer":"Mary Litty","phone":"7483492972.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"554814","customer":null,"phone":"9008226844","alt":null,"service":"Not applicable","followup":"2026-07-16","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"182896","customer":"Koshy Mathew","phone":"919945172682","alt":null,"service":"Vaccination","followup":"2026-07-20","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Ajay Nambiar","id":"504764","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-16","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"247571","customer":null,"phone":null,"alt":null,"service":"Surgery","followup":"2026-07-16","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"340458","customer":"aswanth mohan","phone":"7736725311","alt":null,"service":"Grooming","followup":"2026-07-18","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"210656","customer":"Uday Kumar","phone":"916362058142","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"401470","customer":"Pakhi Srivastava","phone":"9082511242","alt":null,"service":"Consultation","followup":"2026-07-18","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"538940","customer":"nan","phone":"7975581142.0","alt":null,"service":"Grooming","followup":"2026-07-17","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"441929","customer":"Laksmikanth K","phone":"9535283177.0","alt":null,"service":"Grooming","followup":"2026-07-17","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"398957","customer":"Raghu ramuchandran","phone":"919945283025","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"386137","customer":null,"phone":null,"alt":null,"service":"Consultation","followup":"2026-07-16","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"134821","customer":"Pruthvi Shetty","phone":null,"alt":null,"service":"Grooming","followup":"2026-07-15","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Shristi Kesharwani","id":"217665","customer":"raghvendra .","phone":"9513011409","alt":null,"service":"Grooming,Vaccination","followup":"2026-07-22","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"491535","customer":"Praveen S","phone":"9535017730","alt":null,"service":"Grooming","followup":"2026-07-16","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"485970","customer":"Chetan Chavan","phone":"919632473311","alt":null,"service":"Not applicable","followup":"2026-07-20","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"503068","customer":"Deepali Patil","phone":"8169877535","alt":null,"service":"Consultation","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"507895","customer":"Atraiu Nair","phone":"8421951397","alt":null,"service":"Vaccination","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"547547","customer":"Bhargav K C","phone":"7829616235","alt":null,"service":"Vaccination","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"170886","customer":"Nikita Sebastian","phone":"9538214574","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"403098","customer":"Tittu James","phone":"7032775336","alt":null,"service":"Vaccination","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"512854","customer":"Nishita Ranna","phone":"8971825119","alt":null,"service":"Vaccination","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"227635","customer":"Sanjana G S","phone":"8095112481","alt":null,"service":"Vaccination","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"122601","customer":"Sharada S","phone":"9964751855","alt":null,"service":"Vaccination","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"257362","customer":"Valentina Bhowal","phone":"9892658061.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"218365","customer":"Syed Abdullah","phone":"8861502991.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"466638","customer":"Sweta Kumari","phone":"8319499684.0","alt":null,"service":"Grooming","followup":"2026-07-16","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"83834","customer":"Priyanshu Saxena","phone":"8839238948.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"502949","customer":"Somnath Bhadury","phone":"9910908170.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"355786","customer":"Simran Setty","phone":"7022000106.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"396528","customer":"Shuchi .","phone":"9133290123.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"417404","customer":"shreyas pandit","phone":"9845004645.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"386233","customer":"Shravani N","phone":"8050740733.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"15932","customer":"Sheeja V V","phone":"9886392760.0","alt":null,"service":"Grooming","followup":"2026-08-01","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"199931","customer":"Sharon Veronica","phone":"7204060997.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"476155","customer":"Rupa Saha","phone":"9740980402.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"423148","customer":"Rida Annam khan Khan","phone":"9535159119.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"458705","customer":"Madhura Ramprasad","phone":"9901050470.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"496243","customer":"Partha Hukai","phone":"9957235112.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"117628","customer":"Deepa Sharma","phone":"7406893133.0","alt":null,"service":"Grooming","followup":"2026-07-14","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"544606","customer":"delfina .","phone":"9739962675.0","alt":null,"service":"Grooming","followup":"2026-07-22","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"465822","customer":"abhi .","phone":"9071316356.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-05","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"513483","customer":"bhuvana bhojaraj","phone":"8660122133.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-11","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"86849","customer":"Mrs Nandi Nandish Rudrappa","phone":"9886962402.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"262220","customer":"Nitin .","phone":"9108291190.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-01","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"490721","customer":"Narendra Kumar","phone":"6364347183.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-01","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"551548","customer":"Sumit Kumar","phone":"9122999152","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"493758","customer":"Madhukiran Reddy","phone":"7022532829","alt":null,"service":"Grooming","followup":"2026-07-20","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"280401","customer":"Rajalakshmy Mani","phone":"9740244664","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"541905","customer":"Sruthi Sathiya","phone":"9972679658","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"69251","customer":"Chadra Srinivas","phone":"8884160583","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Unassigned","id":"432177","customer":"Aarushi Rao","phone":"9535538007","alt":null,"service":"Not applicable","followup":"2026-07-30","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Unassigned","id":"545736","customer":"Shruthi Apparao","phone":"9731818555","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"440210","customer":"Mrinal Madhukar","phone":"7899420986","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"512204","customer":null,"phone":null,"alt":null,"service":"Vaccination","followup":"2026-07-20","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"539639","customer":"Bushra Navid","phone":null,"alt":null,"service":"Product enquiry","followup":"2026-07-20","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"245743","customer":"Deepika Naresh","phone":null,"alt":null,"service":"Grooming","followup":"2026-07-20","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"540230","customer":null,"phone":"9686645344","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Ajay Nambiar","id":"323187","customer":"Unkown","phone":"7019853283","alt":null,"service":"Vaccination","followup":"2026-07-14","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"493561","customer":"suhail s","phone":"9538646040.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Mrunmayee Nikhade","id":"499864","customer":"srinath bs","phone":"9845710566.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Mrunmayee Nikhade","id":"514488","customer":"Sourav D S","phone":"6361580395.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Mrunmayee Nikhade","id":"456276","customer":"Sharath Pratap","phone":"8317315105.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Mrunmayee Nikhade","id":"105734","customer":"Sahana PS","phone":"8050269416.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Mrunmayee Nikhade","id":"267957","customer":"Rincy P","phone":"9187454984.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Mrunmayee Nikhade","id":"501109","customer":"Reshmi Lekha","phone":"9945524434.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Mrunmayee Nikhade","id":"411181","customer":"OS Vijaykarthik OS","phone":"7200002989.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Mrunmayee Nikhade","id":"343610","customer":"Sandra .","phone":"7760423528.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-22","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"506552","customer":"Tarun Tarun","phone":"7750994481.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"524880","customer":"Sumaiya Fathima","phone":"7022784357.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-04","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"516571","customer":"Sreekanth SR","phone":"9845512611.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-01","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"297930","customer":"Sonya begum","phone":"7899848935.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-01","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"473463","customer":"Shravya S","phone":"8073598451.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-22","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"361894","customer":"Sagar Rathee","phone":"9034390069.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-03","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"280106","customer":"Neetu Raja","phone":"9379542424.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-05","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"405093","customer":"Md javed Ahmed","phone":"7829707927.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-04","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"522396","customer":"Christin Rl","phone":"6003561417.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"156798","customer":"krish Gupta","phone":"9717566934.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"79710","customer":"Azhar Khan","phone":"9738244269.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"527890","customer":"Anukampa Kannan","phone":"8792668604.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"476502","customer":"Anuj Aneja","phone":"9845367163.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"524080","customer":"Akshaya R S","phone":"9036926436.0","alt":null,"service":"Grooming","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"288292","customer":"abhismita. .","phone":"7209292182.0","alt":null,"service":"Grooming","followup":"2026-08-23","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"114323","customer":"Samadrita Sarkar","phone":"8074428169.0","alt":null,"service":"Grooming","followup":"2026-08-04","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"374330","customer":"Blessy Babu","phone":"7306599097.0","alt":null,"service":"Grooming","followup":"2026-08-05","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"427677","customer":"Shraddha Ganesh","phone":"9930769559.0","alt":null,"service":"Grooming","followup":"2026-07-23","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"438142","customer":"nan","phone":"8050527789.0","alt":null,"service":"Grooming","followup":"2026-07-23","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"27710","customer":"Gauravi Gauri","phone":"9810012950.0","alt":null,"service":"Grooming","followup":"2026-07-23","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Taiseen Mulla","id":"497411","customer":"Rohit SinghV","phone":"918147749536","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-22","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Ajay Nambiar","id":"318740","customer":"Lokesh Reddy","phone":"9535339598","alt":null,"service":"Vaccination","followup":"2026-07-14","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"401116","customer":"Misba Khan","phone":"9620122253","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-14","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"425221","customer":"Shaik Shabana","phone":"917729046523","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Ajay Nambiar","id":"259982","customer":"arpit agarwal","phone":"919654584496","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Ajay Nambiar","id":"382638","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-13","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Ajay Nambiar","id":"496404","customer":"iqra arif","phone":"919035944486","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-13","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Ajay Nambiar","id":"338660","customer":"Shalini","phone":null,"alt":null,"service":"Grooming","followup":"2026-07-13","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Unassigned","id":"394742","customer":null,"phone":null,"alt":null,"service":"Missed capturing","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Shristi Kesharwani","id":"440232","customer":"Asiya Azeez","phone":"9535245906","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Unassigned","id":"328729","customer":"Abishek V M","phone":"917338537927","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Gaurav Ghorpade","id":"510601","customer":null,"phone":"7975113977","alt":null,"service":"Grooming","followup":"2026-07-12","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Ajay Nambiar","id":"257341","customer":"Unknown","phone":"9980053209","alt":null,"service":"Surgery","followup":"2026-07-12","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"518347","customer":"Mantraa Bhagawan","phone":"918197240370","alt":null,"service":"Vaccination","followup":"2026-07-14","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"6787","customer":"Rohit Ps","phone":"9008896422","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-11","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"255060","customer":"Sanjana Simha","phone":"9513924555","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Mrunmayee Nikhade","id":"274876","customer":"Ram M","phone":"6282528491","alt":null,"service":"Consultation","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"401732","customer":"Gourabashis Das","phone":"8657394684","alt":null,"service":"Consultation","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"528915","customer":"Mayraj S","phone":"7700966777","alt":null,"service":"Consultation","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"256157","customer":"Pallavi Dhody","phone":"9711177175","alt":null,"service":"Consultation","followup":"2026-07-16","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Mrunmayee Nikhade","id":"287410","customer":"Harini Deepak","phone":"9972008151","alt":null,"service":"Grooming","followup":"2026-07-25","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"114237","customer":"Radha Krishna","phone":"8050028874","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"353032","customer":"Mahesh L","phone":"9444354125","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"481357","customer":"DEEP AGAL","phone":"8123586886","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"104965","customer":"DEEP AGAL","phone":"8123586886","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"309740","customer":"Joanna R","phone":"7022256822","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"92083","customer":"Anubhav Singh","phone":"9967097449","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"431317","customer":"Subham P","phone":"7760102601","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"479853","customer":"Unnathi Nayak","phone":"8618037113","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"478914","customer":"Guru Darshan","phone":"9900890145","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"480749","customer":"Rahul Reddy","phone":"8982828297","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"499719","customer":"Anjana P B","phone":"8979662619","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"355594","customer":"Tharun Naik","phone":"6303288823","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Rabiya Mohammadi","id":"496482","customer":"Rekha Divakar","phone":"9544939836","alt":null,"service":"Vaccination","followup":"2026-07-22","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"522004","customer":"Priya Bansal","phone":"7348973480","alt":null,"service":"Consultation","followup":"2026-07-18","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"519897","customer":"mitali bhardwaj","phone":"919258021258","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-31","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"469663","customer":"Vybhav s","phone":"919844055905","alt":null,"service":"Grooming","followup":"2026-07-22","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"164258","customer":"Chanchal Maheshwari","phone":"8550890323","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-16","reason":"Poor Clinical Experience","channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"346523","customer":"Sudha Sathiya","phone":"9833985203","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-03","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"390488","customer":"Choutu A","phone":"9535973223","alt":null,"service":"Missed capturing","followup":"2026-07-12","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Unassigned","id":"311928","customer":"Pallavi Mishra","phone":"7508739757","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Shruthi Gs","id":"331907","customer":"Rakesh u","phone":"9880847105","alt":null,"service":"Not applicable","followup":"2026-07-20","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"474652","customer":"Sushma Lak","phone":"9482629112","alt":null,"service":"Not applicable","followup":"2026-07-17","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"461228","customer":"Prabhat Kumar","phone":"9886991745","alt":null,"service":"Grooming","followup":"2026-07-27","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Unassigned","id":"38586","customer":null,"phone":"9019678239","alt":null,"service":"Not applicable","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"270660","customer":"N Jyothi Naidu","phone":"9964967467","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"331668","customer":"CHAITRACBHAT BHAT","phone":"6361836226","alt":null,"service":"Consultation","followup":"2026-07-20","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"532306","customer":"Manish Saini","phone":"919522064730","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-15","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"250492","customer":"Denzil N","phone":"9739395007","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"499791","customer":"Sai Reddy","phone":"7795875540","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"182683","customer":"pranavi krishna","phone":"8179854865","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"72818","customer":"Vedhavathi .","phone":"9845779171","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"508146","customer":"Lavleen Chhabra","phone":"9716971971","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"255797","customer":"Madhu Madhu","phone":"6360863833","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"404944","customer":"Simran Sharma","phone":"9340250852","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"394798","customer":"Nini Curha","phone":"9538414517","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"286931","customer":"kajal .","phone":"7975866088","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"176227","customer":"shreyas NP","phone":"7760821110","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-11","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"66387","customer":"Dinah .","phone":"9945898543","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"478802","customer":"Darshan Gowda","phone":"8197921901","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"236773","customer":"Utkarsh Umang","phone":"9891999866","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"121225","customer":"Radha Sangana","phone":"9036869343","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"530010","customer":"Juhi Sharma","phone":"8767340416","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Syed Kareem","id":"283429","customer":"Kaveri Kiran","phone":"9035005953","alt":null,"service":"Consultation","followup":"2026-07-14","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"399111","customer":"Tejas S","phone":"7338207338","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-15","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"21562","customer":"SV Praneth","phone":"7362967800","alt":null,"service":"Grooming","followup":"2026-07-12","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Ajay Nambiar","id":"275531","customer":"Rini S","phone":"919916250012","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-10","reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Shruthi Gs","id":"437264","customer":null,"phone":"9809879089","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-20","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"298194","customer":null,"phone":"7892078838","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Ajay Nambiar","id":"339129","customer":null,"phone":null,"alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"355251","customer":null,"phone":null,"alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"43572","customer":"Shubha Bhargava","phone":"919910031087","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-28","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"471121","customer":"Sharon","phone":"919535432898","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-12","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"5194","customer":"Swapneel Bhowmik","phone":"6290949473","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-15","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"407734","customer":"Hari prasath M","phone":"9080325604","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"124804","customer":"Shiva Pramod","phone":"9620103699","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-15","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"443704","customer":"Vinay Bhairagond","phone":"8971112200.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-21","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"404069","customer":"santhosh r","phone":"8150846110.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-10","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"504542","customer":"Santosh Kumar","phone":"8553272203.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Ajay Nambiar","id":"357184","customer":"Vedha Srinivas","phone":"9108014001","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-09","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"392810","customer":"Maha R","phone":"916360458474","alt":null,"service":"Missed capturing","followup":"2026-07-13","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"445381","customer":null,"phone":"8105080842","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"348705","customer":null,"phone":null,"alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"215440","customer":"Reeturaaz Karn","phone":"8340402227","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"512558","customer":"Prameela M","phone":"7353768955","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"421620","customer":"Ruchir Bhagat","phone":"8123406671","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-25","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"384786","customer":"Manjusha BR","phone":"9739981622","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Rabiya Mohammadi","id":"437870","customer":"Shipra Tayal","phone":"919620888869","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpu_label":"DNPU - Scheduled"},{"agent":"Rabiya Mohammadi","id":"462222","customer":"Sharad Savur","phone":"919688782227","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-20","reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpu_label":"DNPU - Scheduled"},{"agent":"Ajay Nambiar","id":"471577","customer":"Ni N","phone":"9110847969","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-07","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Syed Kareem","id":"502237","customer":"Kaunain Khan","phone":"917019996260","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-23","reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Rabiya Mohammadi","id":"450014","customer":null,"phone":null,"alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"450037","customer":"Vedant Kalia","phone":"9111143311","alt":null,"service":"Surgery","followup":"2026-07-11","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Gaurav Ghorpade","id":"334638","customer":null,"phone":"9945519880","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Ajay Nambiar","id":"408221","customer":null,"phone":"8303003253","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-05","reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Ajay Nambiar","id":"459860","customer":"Zuher Abbas","phone":"919538551920","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-05","reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Ajay Nambiar","id":"451855","customer":"Sri Venkatesh","phone":"919880034680","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-05","reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Shristi Kesharwani","id":"382722","customer":"Kom Raysoni","phone":"8867719456","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Ajay Nambiar","id":"409014","customer":"Aafya Khan","phone":"918660711055","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-05","reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Ajay Nambiar","id":"12603","customer":"Sudip Karmakar","phone":"918582833578","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-05","reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Ajay Nambiar","id":"505207","customer":"Rahul Reddy","phone":"918982828297","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-05","reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Ajay Nambiar","id":"303307","customer":"Rineeta C","phone":"919901248910","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-05","reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Shruthi Gs","id":"406909","customer":"Vishal Kalgutkar","phone":"919986538741","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-09","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"18259","customer":"Ajay shringeri","phone":"917259990905","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-12","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Ajay Nambiar","id":"460659","customer":"Unknown","phone":"7760999239","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-05","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Ajay Nambiar","id":"145668","customer":"Nimitha K","phone":"c","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-16","reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Ajay Nambiar","id":"206699","customer":"Siddharth Mangwana","phone":"9566809650","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-05","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Unassigned","id":"84692","customer":null,"phone":null,"alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-09","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Ajay Nambiar","id":"412508","customer":"Zameer Ahmed","phone":"9663423259","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-05","reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"263681","customer":"Benson John","phone":"917974224737","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-27","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Hashim Hashim","id":"475512","customer":"Nihal Yathish","phone":"919686855333","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-23","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpu_label":null},{"agent":"Karthik V Kabadi","id":"354892","customer":null,"phone":null,"alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"282351","customer":"Gowtham Rohith","phone":"9110815342","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"416665","customer":"Hawa Ara","phone":"8861102541","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"106027","customer":"Rishu Dhawan","phone":"7973725288","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"40024","customer":"Jeevika Reddy","phone":"6364449561","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"331566","customer":"Waseem Shaik","phone":"9589374606","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"355873","customer":"Sumaiya Khan","phone":"8884298041","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"494379","customer":"rakshitha suresh","phone":"8971265763","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-09","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"447866","customer":"Lakshmi S","phone":"6364259954","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"443380","customer":"Nitin Tanwar","phone":"8882014180","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-13","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"250695","customer":"Aman Shah","phone":"9004219136","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-29","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"335474","customer":"JAltaf Pasha","phone":"9945166786","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-10","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"314952","customer":"Ishwari Kalliguddi","phone":"9623676923","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shristi Kesharwani","id":"47429","customer":"Dhanumjay K","phone":"8985769973","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"129473","customer":"Grisha Rai","phone":"9353982360","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"406194","customer":"Swetha Ravi","phone":"9019114629","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"465791","customer":"Mohamed aamir zuhaib S","phone":"9884329283","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"492905","customer":"Vidwath Jogi","phone":"9113974233","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"414429","customer":"Haani Shaikh","phone":"8660615708","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"473949","customer":"priya dinesh","phone":"8050099684","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"354899","customer":"Ushavagele 18","phone":"9538532315","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"316571","customer":"Alisha a","phone":"7899649832","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"349302","customer":"Pranav Veera","phone":"6364012758","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"344195","customer":"Hemanth Acharya","phone":"9008040923","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-10","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"1197","customer":"Saddam Hossain","phone":"6296223496","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-11","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"55486","customer":"Sowmya Thippeswamy","phone":"9686515756","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-15","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"15702","customer":"Deepika Murthy","phone":"7259708570","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-20","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"78979","customer":"Ashish Sharma","phone":"6398537669","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-24","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"244741","customer":"Kavyashree MS","phone":"9148122517","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-13","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"140061","customer":"Ragini Goyal","phone":"6378708430","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-26","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"300703","customer":null,"phone":"9513140978","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"29867","customer":"Bushra farheen","phone":"8448408624","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Lohit M","id":"368448","customer":"Abel Cherian Abraham","phone":"7760836784","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Lohit M","id":"419667","customer":null,"phone":"8970697982","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"125400","customer":"Hananeh Mansouri","phone":"6363378994","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-04","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"477890","customer":null,"phone":"9986029217","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-18","reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Lohit M","id":"443289","customer":"Leena c","phone":"9663508990","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"313194","customer":null,"phone":"9567262379","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"412817","customer":null,"phone":"9164270700","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"358261","customer":null,"phone":"9916116998","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"469918","customer":null,"phone":"8638577324","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"418909","customer":null,"phone":"9666500021","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"193603","customer":null,"phone":"9964839685","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"337773","customer":null,"phone":"9597957766","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"104358","customer":null,"phone":"7032642787","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"310597","customer":null,"phone":"9980529007","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"454056","customer":null,"phone":"8792158747","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"338597","customer":null,"phone":"9036715767","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"18794","customer":null,"phone":"7799001339","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"165786","customer":"Navami Lal","phone":"8618560139","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-13","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"83185","customer":null,"phone":"9496172139","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"343100","customer":"Vishwa Naik","phone":"7899504656","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Unassigned","id":"380238","customer":null,"phone":"9902480803","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-20","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"144103","customer":null,"phone":"7044253254","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-24","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"370029","customer":null,"phone":"9099576723","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"321722","customer":"Steve George","phone":"9900022175","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"262820","customer":"Merlyn Pushparaj","phone":"7406286962","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"286366","customer":"Shalini","phone":"8861773304","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Lohit M","id":"90024","customer":null,"phone":"8970805828","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"89246","customer":"Peyush Agarwal","phone":"9972000188","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-15","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null},{"agent":"Shruthi Gs","id":"32205","customer":"Aditya Singh","phone":"8867150061","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Shruthi Gs","id":"278824","customer":"Nikitha Heble","phone":"8105944743","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpu_label":"DNPU - Call Now"},{"agent":"Shristi Kesharwani","id":"460142","customer":"Parth Udeshi","phone":"9731027303","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpu_label":null}];
+
+let RAW = SEED;
+let currentKpiFilter = 'all';
+let sortKey = 'daysOverdue';
+let sortDir = 'desc';
+
+const el = (id) => document.getElementById(id);
+
+// ============================================================
+// LIVE DATA SOURCE — a published Google Sheet, read by everyone
+// ============================================================
+// 1. Put your daily ticket dump into a Google Sheet (same columns as your
+//    usual CSV export — ticket_id, ticket_status, agent_name, etc).
+// 2. File > Share > Publish to web > select that sheet/tab > CSV > Publish.
+// 3. Paste the link Google gives you below, between the quotes.
+// Leave it as '' to keep using manual file upload (this browser only).
+const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6lDVyowWOb7KjZvft2hGJOsyOKB41C4RgjNPRNrmT0k0BleQTd7qzA6HptCoCiwxSji0dqno2n12g/pub?output=csv';
+
+async function fetchFromGoogleSheet(isManualRefresh){
+  if (!GOOGLE_SHEET_CSV_URL) {
+    if (isManualRefresh) {
+      el('uploadStatus').textContent = 'No Google Sheet configured yet — see the footer note below for setup steps.';
+      el('uploadStatus').classList.remove('ok');
+    }
+    return false;
+  }
+  if (isManualRefresh) {
+    el('uploadStatus').textContent = 'Checking the Google Sheet for the latest data…';
+    el('uploadStatus').classList.remove('ok');
+  }
+  try {
+    const bust = (GOOGLE_SHEET_CSV_URL.includes('?') ? '&' : '?') + '_=' + Date.now();
+    const resp = await fetch(GOOGLE_SHEET_CSV_URL + bust, { cache: 'no-store' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const text = await resp.text();
+    const rows = parseCSVText(text);
+    const parsed = detectAndParse(rows);
+    if (parsed.length === 0) throw new Error('Sheet reached, but no pending rows found in it.');
+    RAW = parsed;
+    rebuildFilterOptions();
+    el('uploadStatus').textContent = `Live from Google Sheet · ${parsed.length} pending tickets · everyone sees this same data.`;
+    el('uploadStatus').classList.add('ok');
+    el('asOfText').textContent = 'Synced ' + new Date().toLocaleTimeString();
+    currentKpiFilter = 'all';
+    render();
+    return true;
+  } catch (err) {
+    el('uploadStatus').textContent = 'Could not reach the Google Sheet: ' + err.message + ' — showing last-known data.';
+    el('uploadStatus').classList.remove('ok');
+    return false;
+  }
+}
+
+// ---- Persistence: shared across every agent who opens this page ----
+// Uses the artifact's shared key-value storage (window.storage, shared=true) so that
+// whoever uploads a file, everyone else sees the same data — not just the uploader's
+// own browser. Falls back to this-browser-only localStorage if shared storage isn't
+// available (e.g. the page was downloaded and opened as a plain local file).
+const STORAGE_KEY = 'clinicPendingTickets_data_v1';
+const STORAGE_META_KEY = 'clinicPendingTickets_meta_v1';
+const HAS_SHARED_STORAGE = !!(window.storage && window.storage.get && window.storage.set);
+
+async function saveToStorage(data, filename){
+  const meta = { filename: filename, savedAt: new Date().toISOString() };
+  if (HAS_SHARED_STORAGE) {
+    try {
+      await window.storage.set(STORAGE_KEY, JSON.stringify(data), true);
+      await window.storage.set(STORAGE_META_KEY, JSON.stringify(meta), true);
+      return true;
+    } catch (e) {
+      console.warn('Could not save to shared storage, falling back to this browser only:', e);
+    }
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem(STORAGE_META_KEY, JSON.stringify(meta));
+  } catch (e) {
+    console.warn('Could not save to local storage (quota or privacy mode):', e);
+  }
+  return false;
+}
+
+async function loadFromStorage(){
+  if (HAS_SHARED_STORAGE) {
+    try {
+      const raw = await window.storage.get(STORAGE_KEY, true);
+      if (raw && raw.value) {
+        let meta = null;
+        try {
+          const metaRaw = await window.storage.get(STORAGE_META_KEY, true);
+          meta = metaRaw && metaRaw.value ? JSON.parse(metaRaw.value) : null;
+        } catch (e) { /* no meta saved yet */ }
+        return { data: JSON.parse(raw.value), meta, shared: true };
+      }
+    } catch (e) {
+      // key doesn't exist yet, or storage errored — fall through
+    }
+    return null;
+  }
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const metaRaw = localStorage.getItem(STORAGE_META_KEY);
+    if (!raw) return null;
+    return { data: JSON.parse(raw), meta: metaRaw ? JSON.parse(metaRaw) : null, shared: false };
+  } catch (e) {
+    console.warn('Could not read local storage:', e);
+    return null;
+  }
+}
+
+async function clearStorage(){
+  if (HAS_SHARED_STORAGE) {
+    try {
+      await window.storage.delete(STORAGE_KEY, true);
+      await window.storage.delete(STORAGE_META_KEY, true);
+    } catch (e) { /* ignore */ }
+    return;
+  }
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_META_KEY);
+  } catch (e) { /* ignore */ }
+}
+
+function todayStr(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+el('refDate').value = todayStr();
+
+function computeStatus(t, refDateStr){
+  if (t.dnpu) {
+    return { label: t.dnpu_label || 'DNPU', cls: 'dnpu', daysOverdue: null, sortRank: 0, statusSort: 0 };
+  }
+  if (!t.followup) {
+    return { label: 'No Follow-up Set', cls: 'nodate', daysOverdue: null, sortRank: 4, statusSort: 4 };
+  }
+  const ref = new Date(refDateStr + 'T00:00:00');
+  const fu = new Date(t.followup + 'T00:00:00');
+  const diffDays = Math.round((ref - fu) / 86400000);
+  if (diffDays > 0) return { label: `Overdue ${diffDays}d`, cls: 'overdue', daysOverdue: diffDays, sortRank: 1, statusSort: 1 };
+  if (diffDays === 0) return { label: 'Due Today', cls: 'today', daysOverdue: 0, sortRank: 2, statusSort: 2 };
+  return { label: 'Upcoming', cls: 'upcoming', daysOverdue: diffDays, sortRank: 3, statusSort: 3 };
+}
+
+function populateSelect(sel, values, withAll, allLabel){
+  sel.innerHTML = '';
+  if (withAll) {
+    const opt = document.createElement('option');
+    opt.value = 'All'; opt.textContent = allLabel;
+    sel.appendChild(opt);
+  }
+  values.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v; opt.textContent = v;
+    sel.appendChild(opt);
+  });
+}
+
+function rebuildFilterOptions(){
+  const agents = [...new Set(RAW.map(t => t.agent).filter(Boolean))].sort();
+  const channels = [...new Set(RAW.map(t => t.channel).filter(Boolean))].sort();
+  const services = [...new Set(RAW.map(t => t.service).filter(Boolean))].sort();
+  populateSelect(el('agentFilter'), agents, true, 'All Agents');
+  populateSelect(el('channelFilter'), channels, true, 'All Channels');
+  populateSelect(el('serviceFilter'), services, true, 'All Services');
+}
+
+function getFiltered(){
+  const agent = el('agentFilter').value;
+  const channel = el('channelFilter').value;
+  const service = el('serviceFilter').value;
+  const refDateStr = el('refDate').value || todayStr();
+  const search = el('searchBox').value.trim().toLowerCase();
+
+  let rows = RAW.map(t => {
+    const s = computeStatus(t, refDateStr);
+    return { ...t, ...s };
+  });
+
+  if (agent !== 'All') rows = rows.filter(t => t.agent === agent);
+  if (channel !== 'All') rows = rows.filter(t => t.channel === channel);
+  if (service !== 'All') rows = rows.filter(t => t.service === service);
+  if (search) {
+    rows = rows.filter(t =>
+      String(t.id).toLowerCase().includes(search) ||
+      (t.customer||'').toLowerCase().includes(search) ||
+      String(t.phone||'').includes(search)
+    );
+  }
+  if (currentKpiFilter === 'overdue') rows = rows.filter(t => t.cls === 'overdue');
+  else if (currentKpiFilter === 'today') rows = rows.filter(t => t.cls === 'today');
+  else if (currentKpiFilter === 'upcoming') rows = rows.filter(t => t.cls === 'upcoming');
+  else if (currentKpiFilter === 'nodate') rows = rows.filter(t => t.cls === 'nodate');
+  else if (currentKpiFilter === 'dnpu') rows = rows.filter(t => t.cls === 'dnpu');
+
+  return rows;
+}
+
+function renderKPIs(baseRows){
+  const counts = { all: baseRows.length, overdue:0, today:0, upcoming:0, nodate:0, dnpu:0 };
+  baseRows.forEach(t => {
+    if (t.cls === 'overdue') counts.overdue++;
+    else if (t.cls === 'today') counts.today++;
+    else if (t.cls === 'upcoming') counts.upcoming++;
+    else if (t.cls === 'nodate') counts.nodate++;
+    else if (t.cls === 'dnpu') counts.dnpu++;
+  });
+  const defs = [
+    {key:'all', cls:'all', label:'Total Pending', value:counts.all},
+    {key:'overdue', cls:'overdue', label:'Overdue', value:counts.overdue},
+    {key:'today', cls:'today', label:'Due Today', value:counts.today},
+    {key:'upcoming', cls:'upcoming', label:'Upcoming', value:counts.upcoming},
+    {key:'nodate', cls:'nodate', label:'No Follow-up Set', value:counts.nodate},
+    {key:'dnpu', cls:'dnpu', label:'DNPU', value:counts.dnpu},
+  ];
+  el('kpiRow').innerHTML = defs.map(d => `
+    <div class="kpi ${d.cls} ${currentKpiFilter===d.key?'active':''}" data-key="${d.key}">
+      <div class="label">${d.label}</div>
+      <div class="value">${d.value}</div>
+    </div>`).join('');
+  el('kpiRow').querySelectorAll('.kpi').forEach(node => {
+    node.addEventListener('click', () => {
+      currentKpiFilter = (currentKpiFilter === node.dataset.key) ? 'all' : node.dataset.key;
+      render();
+    });
+  });
+}
+
+function sortRows(rows){
+  const dir = sortDir === 'asc' ? 1 : -1;
+  return rows.sort((a,b) => {
+    let va = a[sortKey], vb = b[sortKey];
+    if (sortKey === 'daysOverdue') { va = va===null?-9999:va; vb = vb===null?-9999:vb; }
+    if (sortKey === 'followup') { va = va||''; vb = vb||''; }
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return -1*dir;
+    if (va > vb) return 1*dir;
+    return 0;
+  });
+}
+
+function renderTable(rows){
+  const agentSelected = el('agentFilter').value !== 'All';
+  const sorted = sortRows(rows.slice());
+  el('tableCount').textContent = `${sorted.length} ticket${sorted.length===1?'':'s'} shown`;
+  el('tableFilterNote').textContent = currentKpiFilter !== 'all' ? `Filtered: ${currentKpiFilter}` : '';
+
+  if (sorted.length === 0) {
+    el('tableBody').innerHTML = `<tr><td colspan="9"><div class="empty-state"><b>No tickets match these filters.</b><br>Try clearing the search box or picking a different agent/channel.</div></td></tr>`;
+    return;
+  }
+
+  el('tableBody').innerHTML = sorted.map(t => `
+    <tr>
+      <td class="mono">${t.id}</td>
+      <td>${t.agent || '—'}</td>
+      <td>${t.customer || '—'}</td>
+      <td class="mono">${t.phone || '—'}</td>
+      <td>${t.service || '—'}</td>
+      <td>${t.channel || '—'}</td>
+      <td class="mono">${t.followup || '—'}</td>
+      <td><span class="badge ${t.cls}">${t.label}</span></td>
+      <td class="mono">${t.daysOverdue===null? '—' : t.daysOverdue}</td>
+    </tr>`).join('');
+}
+
+function render(){
+  const filtered = getFiltered();
+  renderKPIs(filtered);
+  renderTable(filtered);
+}
+
+// ---- Sorting ----
+document.querySelectorAll('#ticketTable thead th').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.key;
+    if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    else { sortKey = key; sortDir = 'asc'; }
+    document.querySelectorAll('#ticketTable thead th .arrow').forEach(a => a.textContent = '');
+    th.querySelector('.arrow').textContent = sortDir === 'asc' ? '▲' : '▼';
+    render();
+  });
+});
+
+// ---- Filter events ----
+['agentFilter','channelFilter','serviceFilter','refDate','searchBox'].forEach(id => {
+  el(id).addEventListener('input', render);
+  el(id).addEventListener('change', render);
+});
+
+function parseCSVText(text){
+  // Minimal RFC4180-ish CSV parser. Kept separate from SheetJS for CSV files
+  // because SheetJS's CSV reader silently re-formats ambiguous date-looking
+  // cells (e.g. "05-07-2026" -> "5/7/26", flipping day/month) before we ever
+  // see the raw text. Parsing CSV ourselves keeps the original text intact
+  // so parseFlexDate() can interpret it correctly.
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip, \n handles the line break */ }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(f => f !== ''));
+}
+
+function parseFlexDate(raw){
+  if (raw === null || raw === undefined || raw === '') return null;
+  if (raw instanceof Date) {
+    if (isNaN(raw)) return null;
+    return raw.toISOString().slice(0,10);
+  }
+  const str = String(raw).trim();
+  if (!str) return null;
+  // ISO yyyy-mm-dd (optionally with time)
+  let m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  // dd-mm-yyyy or dd/mm/yyyy (common CSV/India export format)
+  m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  // fallback: let the browser try
+  const d = new Date(str);
+  if (!isNaN(d)) return d.toISOString().slice(0,10);
+  return null;
+}
+
+function rowsToTickets(rows){
+  // Format A: the processed "My Pending Tickets" export (12 fixed columns).
+  const body = rows.slice(1); // skip header row
+  const parsed = [];
+  body.forEach(r => {
+    const isPending = r[0];
+    if (String(isPending).trim() !== 'Yes') return;
+    const followup = parseFlexDate(r[7]);
+    const status = r[8] || '';
+    const isDnpu = typeof status === 'string' && status.startsWith('DNPU');
+    parsed.push({
+      agent: r[1] || null, id: r[2], customer: r[3] || null, phone: r[4] || null,
+      alt: r[5] || null, service: r[6] || null, followup: followup,
+      reason: r[10] || null, channel: r[11] || null,
+      dnpu: isDnpu, dnpu_label: isDnpu ? status : null
+    });
+  });
+  return parsed;
+}
+
+function rawDumpToTickets(rows){
+  // Format B: the raw daily ticket-system export (ticket_id, ticket_status, cf_* columns).
+  // Replicates the same logic as the Nugget_Dump formulas in the workbook, so you can
+  // point this dashboard straight at the daily dump without going through Excel first.
+  const header = rows[0].map(h => String(h || '').trim());
+  const idx = {};
+  const need = ['ticket_id','ticket_status','updated_at','channel_name','agent_name','cf_phone',
+    'cf_follow_up_date','cf_customer_name','cf_alternative_number','cf_call_type','cf_phone_number',
+    'cf_alternate_number','cf_cx_name','cf_follow_up_timestamp','cf_clinic_services',
+    'cf_cf_issue_category_issue_type'];
+  need.forEach(n => { idx[n] = header.findIndex(h => h.toLowerCase() === n); });
+  if (idx['ticket_id'] === -1 || idx['ticket_status'] === -1) {
+    throw new Error('This looks like a raw dump but is missing "ticket_id" / "ticket_status" columns.');
+  }
+
+  const now = new Date();
+  const parsed = [];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || row.length === 0) continue;
+    const status = String(row[idx['ticket_status']] || '').trim().toLowerCase();
+    if (status === 'resolved' || status === 'closed') continue; // not pending
+    const ticketId = row[idx['ticket_id']];
+    if (!ticketId) continue;
+
+    const get = (name) => (idx[name] >= 0 ? row[idx[name]] : '') || '';
+
+    const service = get('cf_clinic_services') || 'Not Specified (No Clinic Service Tagged)';
+    const channel = get('channel_name') || 'Unspecified';
+    const agent = get('agent_name') || 'Unassigned';
+    const isDnpu = get('cf_call_type') === 'DNPU';
+
+    const fuDateRaw = get('cf_follow_up_date') || get('cf_follow_up_timestamp');
+    const followup = parseFlexDate(fuDateRaw);
+
+    const customer = get('cf_customer_name') || get('cf_cx_name') || null;
+    const phone = get('cf_phone') || get('cf_phone_number') || null;
+    const alt = get('cf_alternative_number') || get('cf_alternate_number') || null;
+    const reason = get('cf_cf_issue_category_issue_type') || (isDnpu ? 'DNPU - Attempt logged' : null);
+
+    let dnpuLabel = null;
+    if (isDnpu) {
+      let due = null;
+      const updatedRaw = get('updated_at');
+      if (updatedRaw) {
+        const lastAction = new Date(String(updatedRaw).replace(' ', 'T'));
+        if (!isNaN(lastAction)) {
+          due = new Date(lastAction.getTime() + 3 * 3600 * 1000);
+          const hour = due.getHours() + due.getMinutes() / 60;
+          if (hour > 21) { due.setDate(due.getDate() + 1); due.setHours(8, 0, 0, 0); }
+          else if (hour < 8) { due.setHours(8, 0, 0, 0); }
+        }
+      }
+      dnpuLabel = (due && now >= due) ? 'DNPU - Call Now' : 'DNPU - Scheduled';
+    }
+
+    parsed.push({
+      agent, id: ticketId, customer, phone, alt, service, followup, reason, channel,
+      dnpu: isDnpu, dnpu_label: dnpuLabel
+    });
+  }
+  return parsed;
+}
+
+function detectAndParse(rows){
+  if (!rows || rows.length < 2) throw new Error('That file looks empty.');
+  const header = rows[0].map(h => String(h || '').trim().toLowerCase());
+  if (header.includes('is pending')) return rowsToTickets(rows);
+  if (header.includes('ticket_id') && header.includes('ticket_status')) return rawDumpToTickets(rows);
+  throw new Error('Unrecognized column layout — expected either the "My Pending Tickets" export (starts with "Is Pending") or the raw daily dump (has "ticket_id" and "ticket_status" columns).');
+}
+
+async function applyParsedRows(parsed, filename){
+  if (parsed.length === 0) throw new Error('No pending rows found — check this is the right sheet/file (first column should say "Yes" for pending tickets).');
+  RAW = parsed;
+  const savedShared = await saveToStorage(parsed, filename);
+  rebuildFilterOptions();
+  el('uploadStatus').textContent = savedShared
+    ? `Loaded ${parsed.length} pending tickets from ${filename}. Visible to everyone who opens or refreshes this page.`
+    : `Loaded ${parsed.length} pending tickets from ${filename}. Saved for next time you open this page (this browser only — see note below).`;
+  el('uploadStatus').classList.add('ok');
+  el('asOfText').textContent = 'Uploaded ' + new Date().toLocaleString();
+  currentKpiFilter = 'all';
+  render();
+}
+
+// ---- File upload (SheetJS for .xlsx/.xls, native parse for .csv) ----
+el('fileInput').addEventListener('change', (evt) => {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const name = file.name.toLowerCase();
+  const isCsv = name.endsWith('.csv');
+  el('uploadStatus').textContent = 'Reading ' + file.name + '...';
+  el('uploadStatus').classList.remove('ok');
+
+  const reader = new FileReader();
+
+  reader.onload = async (e) => {
+    try {
+      let parsed;
+      if (isCsv) {
+        const rows = parseCSVText(e.target.result);
+        parsed = detectAndParse(rows);
+      } else {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array', cellDates: true });
+        // Try sheets in a sensible order: name match first, then the rest.
+        const ordered = [...wb.SheetNames].sort((a, b) => {
+          const score = (n) => {
+            const l = n.toLowerCase();
+            if (l.includes('pending tickets')) return 0;
+            if (l.includes('dump')) return 1;
+            return 2;
+          };
+          return score(a) - score(b);
+        });
+        let lastErr = null;
+        parsed = null;
+        for (const name of ordered) {
+          try {
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+            const result = detectAndParse(rows);
+            if (result.length > 0) { parsed = result; break; }
+          } catch (err) { lastErr = err; }
+        }
+        if (!parsed) throw (lastErr || new Error('No matching sheet found in this workbook.'));
+      }
+      await applyParsedRows(parsed, file.name);
+    } catch (err) {
+      el('uploadStatus').textContent = 'Could not read that file: ' + err.message;
+      el('uploadStatus').classList.remove('ok');
+    }
+  };
+
+  if (isCsv) reader.readAsText(file);
+  else reader.readAsArrayBuffer(file);
+});
+
+// ---- Init ----
+async function loadLatest(isManualRefresh){
+  if (isManualRefresh) {
+    el('uploadStatus').textContent = 'Checking for the latest upload…';
+    el('uploadStatus').classList.remove('ok');
+  }
+  const saved = await loadFromStorage();
+  if (saved && Array.isArray(saved.data) && saved.data.length > 0) {
+    RAW = saved.data;
+    const savedWhen = saved.meta && saved.meta.savedAt ? new Date(saved.meta.savedAt).toLocaleString() : 'earlier';
+    const savedFile = saved.meta && saved.meta.filename ? saved.meta.filename : 'a previous upload';
+    const sharedNote = saved.shared
+      ? `Showing ${RAW.length} pending tickets from ${savedFile}, uploaded ${savedWhen}. This is the shared data everyone sees.`
+      : `Restored ${RAW.length} pending tickets from ${savedFile} (saved ${savedWhen}, this browser only — see note below).`;
+    el('uploadStatus').textContent = sharedNote;
+    el('uploadStatus').classList.add('ok');
+    el('asOfText').innerHTML = (saved.shared ? 'Shared upload' : 'Using your last upload') + ' &middot; <a href="#" id="resetLink" style="color:#7FD8CC;">reset to bundled snapshot</a>';
+    const resetLink = document.getElementById('resetLink');
+    if (resetLink) resetLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await clearStorage();
+      RAW = SEED;
+      rebuildFilterOptions();
+      el('uploadStatus').textContent = 'Showing data bundled with this dashboard.';
+      el('uploadStatus').classList.remove('ok');
+      el('asOfText').textContent = 'Bundled snapshot — upload today\'s file for current numbers.';
+      currentKpiFilter = 'all';
+      render();
+    });
+  } else {
+    RAW = SEED;
+    el('uploadStatus').textContent = 'Showing data bundled with this dashboard. Upload today\'s file to preview it (this browser only).';
+    el('uploadStatus').classList.remove('ok');
+    el('asOfText').textContent = 'Bundled snapshot.';
+  }
+  rebuildFilterOptions();
+  currentKpiFilter = currentKpiFilter || 'all';
+  render();
+}
+
+el('refreshBtn').addEventListener('click', async () => {
+  const gotSheet = await fetchFromGoogleSheet(true);
+  if (!gotSheet && !GOOGLE_SHEET_CSV_URL) await loadLatest(true);
+});
+
+async function boot(){
+  const gotSheet = await fetchFromGoogleSheet(false);
+  if (gotSheet) {
+    // Live Google Sheet data loaded — keep it fresh automatically.
+    setInterval(() => fetchFromGoogleSheet(false), 3 * 60 * 1000);
+    return;
+  }
+  // No Google Sheet configured (or it failed) — fall back to the old
+  // upload/shared-storage flow, which only works inside a Claude artifact.
+  if (!HAS_SHARED_STORAGE) {
+    el('uploadStatus').textContent = 'No Google Sheet configured — see the footer note below to set one up so everyone sees the same data.';
+  }
+  await loadLatest(false);
+}
+boot();
+</script>
+</body>
+</html>
