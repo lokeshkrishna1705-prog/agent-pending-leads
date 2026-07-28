@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Pending Leads Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#0B1E33; --navy2:#142942; --paper:#F4F6F8; --card:#FFFFFF; --line:#E1E6EC;
+    --ink:#101826; --sub:#5C6B7C;
+    --teal:#0E8A83; --teal-l:#CFEEEA;
+    --coral:#E0532F; --coral-l:#FBE2D9;
+    --red:#B3261E; --red-l:#F6DAD8;
+    --amber:#C98A1E; --amber-l:#F7E6C6;
+    --purple:#7A5AC9; --purple-l:#E7E0F8;
+    --green:#3E8E5A; --green-l:#DCEFE1;
+    --mono:'IBM Plex Mono',monospace; --sans:'Manrope',-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);}
+  body{padding-bottom:60px;}
+  .wrap{max-width:1280px;margin:0 auto;padding:0 24px;}
+
+  header.top{background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);color:#fff;padding:36px 0 28px;}
+  header.top .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:#8FB4C9;margin-bottom:8px;}
+  header.top h1{font-size:27px;font-weight:800;margin:0 0 6px;letter-spacing:-0.02em;}
+  header.top p.sub{color:#B8C6D6;font-size:13.5px;max-width:620px;line-height:1.5;margin:0 0 18px;}
+
+  .upload-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:12px 16px;}
+  .upload-btn{background:#7FD8CC;color:#0B1E33;font-weight:700;font-size:13px;border:none;border-radius:7px;padding:9px 16px;cursor:pointer;font-family:var(--sans);}
+  .upload-btn:hover{background:#9EE5DB;}
+  .upload-status{font-family:var(--mono);font-size:12px;color:#B8C6D6;}
+  .upload-status.ok{color:#7FD8CC;}
+  .as-of{font-family:var(--mono);font-size:11.5px;color:#8FB4C9;margin-left:auto;}
+
+  .controls{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:-24px;position:relative;z-index:2;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;box-shadow:0 6px 20px rgba(16,24,38,0.07);}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--sub);font-weight:700;}
+  .field select, .field input{font-family:var(--sans);font-size:13.5px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);min-width:160px;}
+  .field.grow{flex:1;min-width:200px;}
+  .field.grow input{width:100%;}
+  .field.date input{min-width:150px;font-family:var(--mono);}
+
+  .kpis{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-top:16px;}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px 14px;cursor:pointer;transition:border-color .12s;}
+  .kpi:hover{border-color:var(--teal);}
+  .kpi.active{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal) inset;}
+  .kpi .label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--sub);font-weight:700;margin-bottom:6px;}
+  .kpi .value{font-family:var(--mono);font-size:21px;font-weight:600;}
+  .kpi.all .value{color:var(--ink);}
+  .kpi.overdue .value{color:var(--coral);}
+  .kpi.today .value{color:var(--amber);}
+  .kpi.upcoming .value{color:var(--teal);}
+  .kpi.nodate .value{color:var(--sub);}
+  .kpi.dnpu .value{color:var(--purple);}
+  .kpi.wrongdisp .value{color:var(--red);}
+  .badge.wrongdisp{background:var(--red-l);color:var(--red);}
+
+  .dnpu-subrow{display:flex;gap:10px;margin-top:10px;}
+  .dnpu-subrow.hidden{display:none;}
+  .dnpu-pill{flex:1;background:var(--card);border:1px solid var(--purple-l);border-radius:10px;padding:11px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:600;color:var(--ink);transition:border-color .12s;}
+  .dnpu-pill:hover{border-color:var(--purple);}
+  .dnpu-pill.active{border-color:var(--purple);box-shadow:0 0 0 1px var(--purple) inset;background:var(--purple-l);}
+  .dnpu-pill .value{font-family:var(--mono);font-weight:700;color:var(--purple);}
+
+  section.table-section{margin-top:18px;}
+  .table-card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .table-toolbar{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--sub);}
+  .table-scroll{overflow-x:auto;max-height:640px;overflow-y:auto;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  thead th{position:sticky;top:0;background:var(--navy);color:#fff;text-align:left;padding:10px 12px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;white-space:nowrap;z-index:1;}
+  thead th:hover{background:var(--navy2);}
+  thead th .arrow{opacity:.5;margin-left:4px;font-size:9px;}
+  tbody td{padding:9px 12px;border-bottom:1px solid #EEF1F4;white-space:nowrap;}
+  tbody tr:hover{background:#F8FAFB;}
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;}
+  .badge.overdue{background:var(--coral-l);color:#8A3418;}
+  .badge.today{background:var(--amber-l);color:#6B4E10;}
+  .badge.upcoming{background:var(--teal-l);color:#0A5A55;}
+  .badge.nodate{background:#EEF0F3;color:var(--sub);}
+  .badge.dnpu{background:var(--purple-l);color:#4B3382;}
+  .mono{font-family:var(--mono);}
+  .empty-state{padding:60px 20px;text-align:center;color:var(--sub);font-size:13.5px;}
+  .empty-state b{color:var(--ink);}
+
+  .footer-note{margin-top:28px;font-size:12px;color:var(--sub);line-height:1.6;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;}
+
+  @media (max-width:900px){
+    .kpis{grid-template-columns:repeat(3,1fr);}
+    .controls{flex-direction:column;align-items:stretch;}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="eyebrow">Clinic Ops · Pending Tickets</div>
+    <h1>Agent Pending Leads Tracker</h1>
+    <p class="sub">Pick your name below to see just your pending tickets — count and full list. This page is live-linked to the Google Sheet — update the sheet and everyone sees the same numbers automatically.</p>
+    <div class="upload-row">
+      <button class="upload-btn" id="refreshBtn" style="background:transparent;color:#7FD8CC;border:1px solid rgba(127,216,204,0.5);">&#8635; Refresh</button>
+      <span class="upload-status" id="uploadStatus">Loading shared data…</span>
+      <span class="as-of" id="asOfText"></span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="controls">
+    <div class="field">
+      <label>Agent</label>
+      <select id="agentFilter"></select>
+    </div>
+    <div class="field">
+      <label>Channel</label>
+      <select id="channelFilter"></select>
+    </div>
+    <div class="field">
+      <label>Service</label>
+      <select id="serviceFilter"></select>
+    </div>
+    <div class="field date">
+      <label>As of date</label>
+      <input type="date" id="refDate">
+    </div>
+    <div class="field grow">
+      <label>Search</label>
+      <input type="text" id="searchBox" placeholder="Ticket ID, customer name, or phone">
+    </div>
+  </div>
+
+  <div class="kpis" id="kpiRow"></div>
+  <div class="dnpu-subrow hidden" id="dnpuSubRow"></div>
+
+  <section class="table-section">
+    <div class="table-card">
+      <div class="table-toolbar">
+        <span id="tableCount"></span>
+        <span id="tableFilterNote"></span>
+      </div>
+      <div class="table-scroll">
+        <table id="ticketTable">
+          <thead>
+            <tr>
+              <th data-key="id">Ticket ID<span class="arrow"></span></th>
+              <th data-key="agent">Agent<span class="arrow"></span></th>
+              <th data-key="customer">Customer<span class="arrow"></span></th>
+              <th data-key="phone">Phone<span class="arrow"></span></th>
+              <th data-key="service">Service<span class="arrow"></span></th>
+              <th data-key="channel">Channel<span class="arrow"></span></th>
+              <th data-key="followup">Follow-up Date<span class="arrow"></span></th>
+              <th data-key="statusSort">Status<span class="arrow"></span></th>
+              <th data-key="daysOverdue">Days Overdue<span class="arrow"></span></th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer-note">
+    <b>This dashboard is live-linked to your Google Sheet.</b> Whoever updates that Sheet, this page picks it up automatically (it also refreshes itself every few minutes) — no uploads needed. If you ever need to point it at a different sheet, edit <span class="mono" style="background:#EEF0F3;padding:1px 5px;border-radius:4px;">const GOOGLE_SHEET_CSV_URL</span> near the top of the script and re-publish to GitHub Pages.
+  </div>
+</div>
+
+<script>
+const SEED = [{"agent":"Shristi Kesharwani","id":"447570","customer":"Siddharth MK","phone":"9663181521","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpuDueAt":"2026-07-28T13:33:57","wrongDisposition":false},{"agent":"Susan","id":"154110","customer":"Gayathri Prakash","phone":"919360264737","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpuDueAt":"2026-07-28T12:24:48","wrongDisposition":false},{"agent":"Susan","id":"600304","customer":null,"phone":"9980034597","alt":null,"service":"outbound_campaign","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpuDueAt":"2026-07-28T12:55:04","wrongDisposition":false},{"agent":"Susan","id":"575901","customer":null,"phone":"9611200363","alt":null,"service":"outbound_campaign","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpuDueAt":"2026-07-28T12:52:30","wrongDisposition":false},{"agent":"Heenakauser","id":"57848","customer":"Kritika R","phone":"9739157561","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpuDueAt":"2026-07-28T13:25:38","wrongDisposition":false},{"agent":"Susan","id":"538069","customer":"Arun Kumar","phone":"919846864653","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpuDueAt":"2026-07-28T12:00:54","wrongDisposition":false},{"agent":"Lohit M","id":"229879","customer":null,"phone":null,"alt":null,"service":"Not applicable","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic IB","dnpu":true,"dnpuDueAt":"2026-07-28T10:57:17","wrongDisposition":false},{"agent":"Lohit M","id":"576505","customer":null,"phone":null,"alt":null,"service":"Consultation,Online pet consultation,EMERGENCY","followup":null,"reason":"Transferred","channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":true},{"agent":"Lohit M","id":"497934","customer":null,"phone":null,"alt":null,"service":"EMERGENCY","followup":"2026-07-28","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Susan","id":"591175","customer":"Shruti Gundil","phone":"919873102817","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpuDueAt":"2026-07-28T12:13:49","wrongDisposition":false},{"agent":"Susan","id":"439441","customer":"Varshitha Ky","phone":"919353143342","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpuDueAt":"2026-07-28T12:14:50","wrongDisposition":false},{"agent":"Susan","id":"511473","customer":"Hanumesh Konanavar","phone":"917892017095","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpuDueAt":"2026-07-28T12:03:48","wrongDisposition":false},{"agent":"Susan","id":"63261","customer":"Anjana A","phone":"916238495869","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpuDueAt":"2026-07-28T12:02:36","wrongDisposition":false},{"agent":"Lohit M","id":"447438","customer":null,"phone":null,"alt":null,"service":"Consultation","followup":"2026-07-28","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Hashim Hashim","id":"313202","customer":"Dhanush R","phone":"919742126174","alt":null,"service":"Missed capturing","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB New Leads","dnpu":true,"dnpuDueAt":"2026-07-28T08:00:00","wrongDisposition":false},{"agent":"Hashim Hashim","id":"506352","customer":null,"phone":"9611963095","alt":null,"service":"Consultation","followup":"2026-07-28","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Hashim Hashim","id":"501373","customer":null,"phone":"9945040001","alt":null,"service":"Consultation","followup":"2026-07-28","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Hashim Hashim","id":"550510","customer":null,"phone":"9168183253","alt":null,"service":"Consultation","followup":"2026-07-28","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Taiseen Mulla","id":"445688","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-28","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shruthi Gs","id":"507346","customer":"Abdul Afnan","phone":"917994062724","alt":null,"service":"Not applicable","followup":null,"reason":"Lost","channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":true},{"agent":"Ajay Nambiar","id":"445296","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-30","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Ajay Nambiar","id":"308838","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-29","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Mrunmayee Nikhade","id":"505798","customer":"Rahil Wats","phone":"9108284567","alt":null,"service":"Grooming","followup":"2026-07-31","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Mrunmayee Nikhade","id":"559082","customer":"Savita Bhatt","phone":"7406729449","alt":null,"service":"Grooming","followup":"2026-08-11","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Mrunmayee Nikhade","id":"561496","customer":"Kumuda Vadlamudi","phone":"9916794979","alt":null,"service":"Grooming","followup":"2026-07-27","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Lohit M","id":"510399","customer":null,"phone":null,"alt":null,"service":"EMERGENCY","followup":"2026-07-27","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Mrunmayee Nikhade","id":"503246","customer":"Azma Noor","phone":"8722724547.0","alt":null,"service":"Grooming","followup":"2026-07-30","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shruthi Gs","id":"516745","customer":"Unknown","phone":"+919620588002","alt":null,"service":"Grooming","followup":"2026-07-27","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Mohammed Zahed","id":"593882","customer":null,"phone":null,"alt":null,"service":"Not applicable","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic IB","dnpu":true,"dnpuDueAt":"2026-07-27T08:00:00","wrongDisposition":false},{"agent":"Mohammed Zahed","id":"542383","customer":null,"phone":null,"alt":null,"service":"Not applicable","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic IB","dnpu":true,"dnpuDueAt":"2026-07-27T08:00:00","wrongDisposition":false},{"agent":"Rabiya Mohammadi","id":"534417","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-27","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Rabiya Mohammadi","id":"363060","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-27","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Hashim Hashim","id":"522726","customer":null,"phone":"9916450440","alt":null,"service":"Grooming","followup":"2026-07-31","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Hashim Hashim","id":"487219","customer":"ishanee dutta","phone":"919836382990","alt":null,"service":"Grooming","followup":"2026-07-28","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Hashim Hashim","id":"9981","customer":null,"phone":"8071581842","alt":null,"service":"Consultation","followup":"2026-07-28","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shristi Kesharwani","id":"554229","customer":"Sangeetha Sivadasan","phone":"9538685853","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-01","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Hashim Hashim","id":"524979","customer":"Shivam Sahu","phone":"917976417381","alt":null,"service":"Grooming","followup":"2026-07-28","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shruthi Gs","id":"408895","customer":"Siddhartha Singh","phone":"9999649867","alt":null,"service":"Consultation","followup":"2026-07-30","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Rabiya Mohammadi","id":"536832","customer":"Srujan S","phone":"916362473455","alt":null,"service":"Grooming","followup":"2026-07-27","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shristi Kesharwani","id":"602260","customer":"Niru Sajwan","phone":"9988255302.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-07","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shristi Kesharwani","id":"532840","customer":"Malini B Sagar","phone":"9632664445.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-28","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shristi Kesharwani","id":"580634","customer":"Zoran Abid","phone":"9845540190.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-28","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shruthi Gs","id":"570182","customer":null,"phone":null,"alt":null,"service":"Not applicable","followup":"2026-07-29","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Taiseen Mulla","id":"550249","customer":"Rohan Patil","phone":"919326412083","alt":null,"service":"Grooming","followup":"2026-08-10","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Ajay Nambiar","id":"471534","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-25","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Taiseen Mulla","id":"487366","customer":"Pragya Rathore","phone":"918808077771","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-31","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Rabiya Mohammadi","id":"580639","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-27","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Rabiya Mohammadi","id":"541713","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-27","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Rabiya Mohammadi","id":"595224","customer":null,"phone":null,"alt":null,"service":"Surgery","followup":"2026-07-27","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Taiseen Mulla","id":"150369","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-29","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Taiseen Mulla","id":"542860","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-29","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Gaurav Ghorpade","id":"479165","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-08-11","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shristi Kesharwani","id":"500941","customer":"sunath menan","phone":"8129017626","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-30","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shristi Kesharwani","id":"374125","customer":"Kiran Singh","phone":"9654501438","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-28","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Mrunmayee Nikhade","id":"594750","customer":"Sana Salman","phone":"9739925772","alt":null,"service":"Grooming","followup":"2026-07-31","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Mrunmayee Nikhade","id":"526366","customer":"Shridevi Kapileshwari","phone":"7338501227","alt":null,"service":"Grooming","followup":"2026-07-30","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Mrunmayee Nikhade","id":"313113","customer":"Vyom Sharma","phone":"9716909002","alt":null,"service":"Consultation","followup":"2026-07-31","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shristi Kesharwani","id":"583185","customer":"Amit Umarani","phone":"9980712700.0","alt":null,"service":"Grooming","followup":"2026-07-27","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Hashim Hashim","id":"448406","customer":"Lakshmi","phone":"9845021890","alt":null,"service":"Missed capturing","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpuDueAt":"2026-07-26T19:10:35","wrongDisposition":false},{"agent":"Shruthi Gs","id":"289810","customer":"Shiyon Saji","phone":"919496096241","alt":null,"service":"Vaccination","followup":"2026-07-29","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Susan","id":"582656","customer":"Unknown","phone":"+919703100047","alt":null,"service":"Grooming","followup":"2026-07-28","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Gaurav Ghorpade","id":"19202","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-27","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Rabiya Mohammadi","id":"494569","customer":"Daffodil Mondal","phone":"918250780570","alt":null,"service":"Grooming","followup":"2026-07-30","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Rabiya Mohammadi","id":"365327","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-27","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Mrunmayee Nikhade","id":"305386","customer":"Sidharth SS","phone":"7205637018","alt":null,"service":"Grooming","followup":"2026-07-31","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shristi Kesharwani","id":"445863","customer":"Haneea .","phone":"6366699999","alt":null,"service":"Consultation","followup":"2026-07-31","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Rabiya Mohammadi","id":"328253","customer":"Sumeera S","phone":"9901416294","alt":null,"service":"Grooming","followup":"2026-07-27","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Rabiya Mohammadi","id":"498478","customer":"Steve Pranav","phone":"919886024377","alt":null,"service":"Grooming","followup":"2026-07-27","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shristi Kesharwani","id":"539379","customer":"barish r","phone":"9739831011.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-11","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Mrunmayee Nikhade","id":"496694","customer":"Ashka Kankaria","phone":"7798881175.0","alt":null,"service":"Grooming","followup":"2026-07-30","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Ajay Nambiar","id":"492856","customer":null,"phone":null,"alt":null,"service":"Grooming","followup":"2026-07-29","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Taiseen Mulla","id":"559075","customer":"B Kalyan Kumar","phone":"919036940958","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-29","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shristi Kesharwani","id":"453585","customer":"Naila Siddique","phone":"9739744234","alt":null,"service":"Grooming","followup":"2026-07-28","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shristi Kesharwani","id":"445332","customer":"shayan .","phone":"8777759524","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-01","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shristi Kesharwani","id":"396559","customer":"Sunjay Bs","phone":"9980377779.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-27","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Gaurav Ghorpade","id":"535789","customer":null,"phone":null,"alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpuDueAt":"2026-07-22T17:34:47","wrongDisposition":false},{"agent":"Gaurav Ghorpade","id":"520427","customer":"Ashish Honwadkar","phone":"919043139603","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-29","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shruthi Gs","id":"470548","customer":"Polo Lakshmi","phone":"919611686867","alt":null,"service":"Grooming","followup":"2026-08-02","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Lohit M","id":"577308","customer":null,"phone":null,"alt":null,"service":"Not applicable,Vaccination","followup":null,"reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Gaurav Ghorpade","id":"583846","customer":"preeti k","phone":"919060880066","alt":null,"service":"Surgery","followup":"2026-07-27","reason":null,"channel":"Clinic IB","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Mrunmayee Nikhade","id":"368413","customer":"elbridge .","phone":"9739261391","alt":null,"service":"Vaccination","followup":"2026-07-31","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shristi Kesharwani","id":"93521","customer":"Akansha Roy","phone":"9916855555.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-28","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shruthi Gs","id":"442163","customer":"Rahul Hr","phone":"917411550708","alt":null,"service":"Grooming","followup":"2026-08-03","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shristi Kesharwani","id":"197764","customer":"Bakul Bharadwaj","phone":"9168189922.0","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-08","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Hashim Hashim","id":"198177","customer":"Suresh","phone":"9871468290","alt":null,"service":"Consultation","followup":"2026-07-28","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Mrunmayee Nikhade","id":"557441","customer":"Piyush Wankhade","phone":"9921413227","alt":null,"service":"Grooming","followup":"2026-07-30","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Shruthi Gs","id":"346523","customer":"Sudha Sathiya","phone":"9833985203","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-08-03","reason":null,"channel":"Clinic OB New Leads","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Lohit M","id":"106027","customer":"Rishu Dhawan","phone":"7973725288","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-29","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Lohit M","id":"465791","customer":"Mohamed aamir zuhaib S","phone":"9884329283","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Syed Kareem","id":"310597","customer":null,"phone":"9980529007","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Syed Kareem","id":"454056","customer":null,"phone":"8792158747","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Syed Kareem","id":"338597","customer":null,"phone":"9036715767","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":"DNPU - Attempt logged","channel":"Clinic OB Existing Users","dnpu":true,"dnpuDueAt":"2026-07-22T08:00:00","wrongDisposition":false},{"agent":"Syed Kareem","id":"18794","customer":null,"phone":"7799001339","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Syed Kareem","id":"83185","customer":null,"phone":"9496172139","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Syed Kareem","id":"380238","customer":null,"phone":"9902480803","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-20","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Syed Kareem","id":"144103","customer":null,"phone":"7044253254","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":"2026-07-24","reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Syed Kareem","id":"370029","customer":null,"phone":"9099576723","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Syed Kareem","id":"90024","customer":null,"phone":"8970805828","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false},{"agent":"Syed Kareem","id":"460142","customer":"Parth Udeshi","phone":"9731027303","alt":null,"service":"Not Specified (No Clinic Service Tagged)","followup":null,"reason":null,"channel":"Clinic OB Existing Users","dnpu":false,"dnpuDueAt":null,"wrongDisposition":false}];
+
+let RAW = SEED;
+let currentKpiFilter = 'all';
+let sortKey = 'daysOverdue';
+let sortDir = 'desc';
+
+const el = (id) => document.getElementById(id);
+
+// ============================================================
+// LIVE DATA SOURCE — a published Google Sheet, read by everyone
+// ============================================================
+// 1. Put your daily ticket dump into a Google Sheet (same columns as your
+//    usual CSV export — ticket_id, ticket_status, agent_name, etc).
+// 2. File > Share > Publish to web > select that sheet/tab > CSV > Publish.
+// 3. Paste the link Google gives you below, between the quotes.
+// Leave it as '' to keep using manual file upload (this browser only).
+const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6lDVyowWOb7KjZvft2hGJOsyOKB41C4RgjNPRNrmT0k0BleQTd7qzA6HptCoCiwxSji0dqno2n12g/pub?output=csv';
+
+async function fetchFromGoogleSheet(isManualRefresh){
+  if (!GOOGLE_SHEET_CSV_URL) {
+    if (isManualRefresh) {
+      el('uploadStatus').textContent = 'No Google Sheet configured yet — see the footer note below for setup steps.';
+      el('uploadStatus').classList.remove('ok');
+    }
+    return false;
+  }
+  if (isManualRefresh) {
+    el('uploadStatus').textContent = 'Refreshing…';
+    el('uploadStatus').classList.remove('ok');
+  }
+  try {
+    const bust = (GOOGLE_SHEET_CSV_URL.includes('?') ? '&' : '?') + '_=' + Date.now();
+    const resp = await fetch(GOOGLE_SHEET_CSV_URL + bust, { cache: 'no-store' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const text = await resp.text();
+    const rows = parseCSVText(text);
+    const parsed = detectAndParse(rows);
+    if (parsed.length === 0) throw new Error('Sheet reached, but no pending rows found in it.');
+    RAW = parsed;
+    rebuildFilterOptions();
+    el('uploadStatus').textContent = 'Live';
+    el('uploadStatus').classList.add('ok');
+    el('asOfText').textContent = 'Last updated: ' + new Date().toLocaleString();
+    currentKpiFilter = 'all';
+    render();
+    return true;
+  } catch (err) {
+    el('uploadStatus').textContent = 'Could not reach the Google Sheet — showing last-known data.';
+    el('uploadStatus').classList.remove('ok');
+    return false;
+  }
+}
+
+// ---- Persistence: shared across every agent who opens this page ----
+// Uses the artifact's shared key-value storage (window.storage, shared=true) so that
+// whoever uploads a file, everyone else sees the same data — not just the uploader's
+// own browser. Falls back to this-browser-only localStorage if shared storage isn't
+// available (e.g. the page was downloaded and opened as a plain local file).
+const STORAGE_KEY = 'clinicPendingTickets_data_v1';
+const STORAGE_META_KEY = 'clinicPendingTickets_meta_v1';
+const HAS_SHARED_STORAGE = !!(window.storage && window.storage.get && window.storage.set);
+
+async function saveToStorage(data, filename){
+  const meta = { filename: filename, savedAt: new Date().toISOString() };
+  if (HAS_SHARED_STORAGE) {
+    try {
+      await window.storage.set(STORAGE_KEY, JSON.stringify(data), true);
+      await window.storage.set(STORAGE_META_KEY, JSON.stringify(meta), true);
+      return true;
+    } catch (e) {
+      console.warn('Could not save to shared storage, falling back to this browser only:', e);
+    }
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem(STORAGE_META_KEY, JSON.stringify(meta));
+  } catch (e) {
+    console.warn('Could not save to local storage (quota or privacy mode):', e);
+  }
+  return false;
+}
+
+async function loadFromStorage(){
+  if (HAS_SHARED_STORAGE) {
+    try {
+      const raw = await window.storage.get(STORAGE_KEY, true);
+      if (raw && raw.value) {
+        let meta = null;
+        try {
+          const metaRaw = await window.storage.get(STORAGE_META_KEY, true);
+          meta = metaRaw && metaRaw.value ? JSON.parse(metaRaw.value) : null;
+        } catch (e) { /* no meta saved yet */ }
+        return { data: JSON.parse(raw.value), meta, shared: true };
+      }
+    } catch (e) {
+      // key doesn't exist yet, or storage errored — fall through
+    }
+    return null;
+  }
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const metaRaw = localStorage.getItem(STORAGE_META_KEY);
+    if (!raw) return null;
+    return { data: JSON.parse(raw), meta: metaRaw ? JSON.parse(metaRaw) : null, shared: false };
+  } catch (e) {
+    console.warn('Could not read local storage:', e);
+    return null;
+  }
+}
+
+async function clearStorage(){
+  if (HAS_SHARED_STORAGE) {
+    try {
+      await window.storage.delete(STORAGE_KEY, true);
+      await window.storage.delete(STORAGE_META_KEY, true);
+    } catch (e) { /* ignore */ }
+    return;
+  }
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_META_KEY);
+  } catch (e) { /* ignore */ }
+}
+
+function isoDateLocal(d){
+  // Formats a Date using its LOCAL calendar date (unlike toISOString, which
+  // converts to UTC and can roll the date over near midnight).
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function isoDateTimeLocal(d){
+  // Same idea as isoDateLocal but keeps the local time-of-day too, so DNPU
+  // due timestamps can be compared hour-for-hour against "now" rather than
+  // just by calendar day.
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${isoDateLocal(d)}T${hh}:${mm}:${ss}`;
+}
+
+function todayStr(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+el('refDate').value = todayStr();
+
+function computeStatus(t, refDateStr){
+  if (t.wrongDisposition) {
+    // Ticket is still open/pending but logged with a disposition that
+    // isn't Active or DNPU (e.g. Lost, Transferred) — the agent recorded
+    // an outcome but never actually closed the ticket. Flagged on its own
+    // so it doesn't get counted as a genuine "still working it" lead.
+    return { label: 'Wrong Disposition', cls: 'wrongdisp', daysOverdue: null, sortRank: -1, statusSort: -1 };
+  }
+  if (t.dnpu) {
+    // Shift is 8am–9pm. The 2nd attempt is due 3 hours after the last
+    // action (dnpuDueAt, already clamped into that shift window at parse
+    // time). Compared against the live current time — not the "As of
+    // date" — so a ticket flips from Call Now to Overdue in real time as
+    // the 3-hour window elapses, without needing a page refresh.
+    const due = t.dnpuDueAt ? new Date(t.dnpuDueAt) : null;
+    const isOverdue = !!(due && new Date() >= due);
+    return isOverdue
+      ? { label: 'DNPU - Overdue', cls: 'dnpu', subCls: 'dnpu-overdue', daysOverdue: null, sortRank: 0, statusSort: 0 }
+      : { label: 'DNPU - Call Now', cls: 'dnpu', subCls: 'dnpu-callnow', daysOverdue: null, sortRank: 0, statusSort: 0 };
+  }
+  if (!t.followup) {
+    // No dedicated KPI tile for this anymore (removed per request), but we
+    // keep the classification so the table badge still shows it under "All".
+    return { label: 'No Follow-up Set', cls: 'nodate', daysOverdue: null, sortRank: 4, statusSort: 4 };
+  }
+  const ref = new Date(refDateStr + 'T00:00:00');
+  const fu = new Date(t.followup + 'T00:00:00');
+  const diffDays = Math.round((ref - fu) / 86400000);
+  if (diffDays > 0) return { label: `Overdue ${diffDays}d`, cls: 'overdue', daysOverdue: diffDays, sortRank: 1, statusSort: 1 };
+  if (diffDays === 0) return { label: 'Due Today', cls: 'today', daysOverdue: 0, sortRank: 2, statusSort: 2 };
+  return { label: 'Upcoming', cls: 'upcoming', daysOverdue: diffDays, sortRank: 3, statusSort: 3 };
+}
+
+function populateSelect(sel, values, withAll, allLabel){
+  sel.innerHTML = '';
+  if (withAll) {
+    const opt = document.createElement('option');
+    opt.value = 'All'; opt.textContent = allLabel;
+    sel.appendChild(opt);
+  }
+  values.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v; opt.textContent = v;
+    sel.appendChild(opt);
+  });
+}
+
+function rebuildFilterOptions(){
+  const agents = [...new Set(RAW.map(t => t.agent).filter(Boolean))].sort();
+  const channels = [...new Set(RAW.map(t => t.channel).filter(Boolean))].sort();
+  const services = [...new Set(RAW.map(t => t.service).filter(Boolean))].sort();
+  populateSelect(el('agentFilter'), agents, true, 'All Agents');
+  populateSelect(el('channelFilter'), channels, true, 'All Channels');
+  populateSelect(el('serviceFilter'), services, true, 'All Services');
+}
+
+function getFiltered(){
+  const agent = el('agentFilter').value;
+  const channel = el('channelFilter').value;
+  const service = el('serviceFilter').value;
+  const refDateStr = el('refDate').value || todayStr();
+  const search = el('searchBox').value.trim().toLowerCase();
+
+  let rows = RAW.map(t => {
+    const s = computeStatus(t, refDateStr);
+    return { ...t, ...s };
+  });
+
+  if (agent !== 'All') rows = rows.filter(t => t.agent === agent);
+  if (channel !== 'All') rows = rows.filter(t => t.channel === channel);
+  if (service !== 'All') rows = rows.filter(t => t.service === service);
+  if (search) {
+    rows = rows.filter(t =>
+      String(t.id).toLowerCase().includes(search) ||
+      (t.customer||'').toLowerCase().includes(search) ||
+      String(t.phone||'').includes(search)
+    );
+  }
+  if (currentKpiFilter === 'overdue') rows = rows.filter(t => t.cls === 'overdue');
+  else if (currentKpiFilter === 'today') rows = rows.filter(t => t.cls === 'today');
+  else if (currentKpiFilter === 'upcoming') rows = rows.filter(t => t.cls === 'upcoming');
+  else if (currentKpiFilter === 'nodate') rows = rows.filter(t => t.cls === 'nodate');
+  else if (currentKpiFilter === 'wrongdisp') rows = rows.filter(t => t.cls === 'wrongdisp');
+  else if (currentKpiFilter === 'dnpu') rows = rows.filter(t => t.cls === 'dnpu');
+  else if (currentKpiFilter === 'dnpu-callnow') rows = rows.filter(t => t.subCls === 'dnpu-callnow');
+  else if (currentKpiFilter === 'dnpu-overdue') rows = rows.filter(t => t.subCls === 'dnpu-overdue');
+
+  return rows;
+}
+
+function renderKPIs(baseRows){
+  const counts = { all: baseRows.length, overdue:0, today:0, upcoming:0, nodate:0, dnpu:0, dnpuCallNow:0, dnpuOverdue:0, wrongdisp:0 };
+  baseRows.forEach(t => {
+    if (t.cls === 'overdue') counts.overdue++;
+    else if (t.cls === 'today') counts.today++;
+    else if (t.cls === 'upcoming') counts.upcoming++;
+    else if (t.cls === 'nodate') counts.nodate++;
+    else if (t.cls === 'wrongdisp') counts.wrongdisp++;
+    else if (t.cls === 'dnpu') {
+      counts.dnpu++;
+      if (t.subCls === 'dnpu-callnow') counts.dnpuCallNow++;
+      else if (t.subCls === 'dnpu-overdue') counts.dnpuOverdue++;
+    }
+  });
+  const dnpuSubFilters = ['dnpu', 'dnpu-callnow', 'dnpu-overdue'];
+  const dnpuActive = dnpuSubFilters.includes(currentKpiFilter);
+  const defs = [
+    {key:'all', cls:'all', label:'Total Pending', value:counts.all},
+    {key:'overdue', cls:'overdue', label:'Overdue', value:counts.overdue},
+    {key:'today', cls:'today', label:'Due Today', value:counts.today},
+    {key:'upcoming', cls:'upcoming', label:'Upcoming', value:counts.upcoming},
+    {key:'dnpu', cls:'dnpu', label:'DNPU', value:counts.dnpu},
+    {key:'nodate', cls:'nodate', label:'No Follow-up Set', value:counts.nodate},
+    {key:'wrongdisp', cls:'wrongdisp', label:'Wrong Disposition', value:counts.wrongdisp},
+  ];
+  el('kpiRow').innerHTML = defs.map(d => `
+    <div class="kpi ${d.cls} ${(d.key==='dnpu' ? dnpuActive : currentKpiFilter===d.key)?'active':''}" data-key="${d.key}">
+      <div class="label">${d.label}</div>
+      <div class="value">${d.value}</div>
+    </div>`).join('');
+  el('kpiRow').querySelectorAll('.kpi').forEach(node => {
+    node.addEventListener('click', () => {
+      const key = node.dataset.key;
+      if (key === 'dnpu') {
+        // Clicking DNPU toggles the combined view; clicking it again (while
+        // already on any DNPU sub-view) clears back to "all".
+        currentKpiFilter = dnpuActive ? 'all' : 'dnpu';
+      } else {
+        currentKpiFilter = (currentKpiFilter === key) ? 'all' : key;
+      }
+      render();
+    });
+  });
+
+  // DNPU breakdown: two clickable pills (Call Now / Overdue) that only
+  // appear once the DNPU tile is active, per the "click DNPU to reveal the
+  // split" request — no permanent separate tiles cluttering the main row.
+  const subRow = el('dnpuSubRow');
+  if (!dnpuActive) {
+    subRow.className = 'dnpu-subrow hidden';
+    subRow.innerHTML = '';
+  } else {
+    subRow.className = 'dnpu-subrow';
+    const subDefs = [
+      {key:'dnpu-callnow', label:'DNPU – Call Now (within 3 hrs)', value:counts.dnpuCallNow},
+      {key:'dnpu-overdue', label:'DNPU – Overdue (past 3 hrs)', value:counts.dnpuOverdue},
+    ];
+    subRow.innerHTML = subDefs.map(d => `
+      <div class="dnpu-pill ${currentKpiFilter===d.key?'active':''}" data-key="${d.key}">
+        <span>${d.label}</span>
+        <span class="value">${d.value}</span>
+      </div>`).join('');
+    subRow.querySelectorAll('.dnpu-pill').forEach(node => {
+      node.addEventListener('click', () => {
+        const key = node.dataset.key;
+        currentKpiFilter = (currentKpiFilter === key) ? 'dnpu' : key;
+        render();
+      });
+    });
+  }
+}
+
+function sortRows(rows){
+  const dir = sortDir === 'asc' ? 1 : -1;
+  return rows.sort((a,b) => {
+    let va = a[sortKey], vb = b[sortKey];
+    if (sortKey === 'daysOverdue') { va = va===null?-9999:va; vb = vb===null?-9999:vb; }
+    if (sortKey === 'followup') { va = va||''; vb = vb||''; }
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return -1*dir;
+    if (va > vb) return 1*dir;
+    return 0;
+  });
+}
+
+function renderTable(rows){
+  const agentSelected = el('agentFilter').value !== 'All';
+  const sorted = sortRows(rows.slice());
+  el('tableCount').textContent = `${sorted.length} ticket${sorted.length===1?'':'s'} shown`;
+  el('tableFilterNote').textContent = currentKpiFilter !== 'all' ? `Filtered: ${currentKpiFilter}` : '';
+
+  if (sorted.length === 0) {
+    el('tableBody').innerHTML = `<tr><td colspan="9"><div class="empty-state"><b>No tickets match these filters.</b><br>Try clearing the search box or picking a different agent/channel.</div></td></tr>`;
+    return;
+  }
+
+  el('tableBody').innerHTML = sorted.map(t => `
+    <tr>
+      <td class="mono">${t.id}</td>
+      <td>${t.agent || '—'}</td>
+      <td>${t.customer || '—'}</td>
+      <td class="mono">${t.phone || '—'}</td>
+      <td>${t.service || '—'}</td>
+      <td>${t.channel || '—'}</td>
+      <td class="mono">${t.followup || '—'}</td>
+      <td><span class="badge ${t.cls}">${t.label}</span></td>
+      <td class="mono">${t.daysOverdue===null? '—' : t.daysOverdue}</td>
+    </tr>`).join('');
+}
+
+
+function render(){
+  const filtered = getFiltered();
+  renderKPIs(filtered);
+  renderTable(filtered);
+}
+
+// ---- Sorting ----
+document.querySelectorAll('#ticketTable thead th').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.key;
+    if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    else { sortKey = key; sortDir = 'asc'; }
+    document.querySelectorAll('#ticketTable thead th .arrow').forEach(a => a.textContent = '');
+    th.querySelector('.arrow').textContent = sortDir === 'asc' ? '▲' : '▼';
+    render();
+  });
+});
+
+// ---- Filter events ----
+['agentFilter','channelFilter','serviceFilter','refDate','searchBox'].forEach(id => {
+  el(id).addEventListener('input', render);
+  el(id).addEventListener('change', render);
+});
+
+function parseCSVText(text){
+  // Minimal RFC4180-ish CSV parser. Kept separate from SheetJS for CSV files
+  // because SheetJS's CSV reader silently re-formats ambiguous date-looking
+  // cells (e.g. "05-07-2026" -> "5/7/26", flipping day/month) before we ever
+  // see the raw text. Parsing CSV ourselves keeps the original text intact
+  // so parseFlexDate() can interpret it correctly.
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip, \n handles the line break */ }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(f => f !== ''));
+}
+
+function parseFlexDate(raw){
+  if (raw === null || raw === undefined || raw === '') return null;
+  if (raw instanceof Date) {
+    if (isNaN(raw)) return null;
+    return raw.toISOString().slice(0,10);
+  }
+  const str = String(raw).trim();
+  if (!str) return null;
+  // ISO yyyy-mm-dd (optionally with time)
+  let m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  // dd-mm-yyyy or dd/mm/yyyy (common CSV/India export format)
+  m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  // fallback: let the browser try
+  const d = new Date(str);
+  if (!isNaN(d)) return d.toISOString().slice(0,10);
+  return null;
+}
+
+function rowsToTickets(rows){
+  // Format A: the processed "My Pending Tickets" export (12 fixed columns).
+  const body = rows.slice(1); // skip header row
+  const parsed = [];
+  body.forEach(r => {
+    const isPending = r[0];
+    if (String(isPending).trim() !== 'Yes') return;
+    const followup = parseFlexDate(r[7]);
+    const status = r[8] || '';
+    const isDnpu = typeof status === 'string' && status.startsWith('DNPU');
+    parsed.push({
+      agent: r[1] || null, id: r[2], customer: r[3] || null, phone: r[4] || null,
+      alt: r[5] || null, service: r[6] || null, followup: followup,
+      reason: r[10] || null, channel: r[11] || null,
+      dnpu: isDnpu, dnpuDueAt: (isDnpu && followup) ? (followup + 'T23:59:59') : null, wrongDisposition: false
+    });
+  });
+  return parsed;
+}
+
+function rawDumpToTickets(rows){
+  // Format B: the raw daily ticket-system export (ticket_id, ticket_status, cf_* columns).
+  // Replicates the same logic as the Nugget_Dump formulas in the workbook, so you can
+  // point this dashboard straight at the daily dump without going through Excel first.
+  const header = rows[0].map(h => String(h || '').trim());
+  const idx = {};
+  const need = ['ticket_id','ticket_status','updated_at','channel_name','agent_name','cf_phone',
+    'cf_follow_up_date','cf_customer_name','cf_alternative_number','cf_call_type','cf_phone_number',
+    'cf_alternate_number','cf_cx_name','cf_follow_up_timestamp','cf_clinic_services',
+    'cf_cf_issue_category_issue_type','cf_lead_status','cf_clinic_ob_known_reason','cf_cf_lead_outcome_reason'];
+  need.forEach(n => { idx[n] = header.findIndex(h => h.toLowerCase() === n); });
+  if (idx['ticket_id'] === -1 || idx['ticket_status'] === -1) {
+    throw new Error('This looks like a raw dump but is missing "ticket_id" / "ticket_status" columns.');
+  }
+
+  const parsed = [];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || row.length === 0) continue;
+    const status = String(row[idx['ticket_status']] || '').trim().toLowerCase();
+    if (status === 'resolved' || status === 'closed') continue; // not pending
+    const ticketId = row[idx['ticket_id']];
+    if (!ticketId) continue;
+
+    const get = (name) => (idx[name] >= 0 ? row[idx[name]] : '') || '';
+
+    const service = get('cf_clinic_services') || 'Not Specified (No Clinic Service Tagged)';
+    const channel = get('channel_name') || 'Unspecified';
+    const agent = get('agent_name') || 'Unassigned';
+    // DNPU can land in any of several columns depending on channel/context —
+    // cf_call_type (older exports), cf_lead_status (New Leads), or
+    // cf_clinic_ob_known_reason (Existing Users) — each tagged "DNPU",
+    // "DNPU1", "DNPU 1", "DNPU2", etc. Checking only cf_call_type silently
+    // missed every ticket tagged through the other two columns.
+    const dnpuFields = [get('cf_call_type'), get('cf_lead_status'), get('cf_clinic_ob_known_reason'), get('cf_cf_lead_outcome_reason')];
+    const isDnpu = dnpuFields.some(v => /^DNPU/i.test(String(v).trim()));
+
+    // A pending ticket should only ever be in one of two states: still
+    // "Active" (working it / no outcome logged yet) or DNPU. Any other
+    // disposition (Lost, Transferred, etc.) sitting in a ticket that's
+    // still open/pending means the agent logged an outcome but never
+    // actually closed the ticket — a wrong disposition, flagged separately
+    // so it doesn't get lumped in with genuinely active "No Follow-up Set"
+    // leads.
+    const statusRaw = (get('cf_lead_status') || get('cf_clinic_ob_known_reason')).trim();
+    const isActiveStatus = !statusRaw || /^active/i.test(statusRaw);
+    const wrongDisposition = !!statusRaw && !isActiveStatus && !isDnpu;
+
+    const fuDateRaw = get('cf_follow_up_date') || get('cf_follow_up_timestamp');
+    const followup = parseFlexDate(fuDateRaw);
+
+    const customer = get('cf_customer_name') || get('cf_cx_name') || null;
+    const phone = get('cf_phone') || get('cf_phone_number') || null;
+    const alt = get('cf_alternative_number') || get('cf_alternate_number') || null;
+    const reason = get('cf_cf_issue_category_issue_type') || (isDnpu ? 'DNPU - Attempt logged' : (wrongDisposition ? statusRaw : null));
+
+    // DNPU 2nd-attempt deadline: last action + 3 hours, clamped into the
+    // 8am–9pm shift window (a due time after 9pm rolls to next day 8am; a
+    // due time before 8am — e.g. an early-morning last action — clamps up
+    // to 8am same day). computeStatus() compares this full timestamp
+    // against the live current time: still inside the window -> "Call Now",
+    // past it -> "Overdue".
+    let dnpuDueAt = null;
+    if (isDnpu) {
+      const updatedRaw = get('updated_at');
+      if (updatedRaw) {
+        const lastAction = new Date(String(updatedRaw).replace(' ', 'T'));
+        if (!isNaN(lastAction)) {
+          const due = new Date(lastAction.getTime() + 3 * 3600 * 1000);
+          const hour = due.getHours() + due.getMinutes() / 60;
+          if (hour > 21) { due.setDate(due.getDate() + 1); due.setHours(8, 0, 0, 0); }
+          else if (hour < 8) { due.setHours(8, 0, 0, 0); }
+          dnpuDueAt = isoDateTimeLocal(due);
+        }
+      }
+    }
+
+    parsed.push({
+      agent, id: ticketId, customer, phone, alt, service, followup, reason, channel,
+      dnpu: isDnpu, dnpuDueAt, wrongDisposition
+    });
+  }
+  return parsed;
+}
+
+function detectAndParse(rows){
+  if (!rows || rows.length < 2) throw new Error('That file looks empty.');
+  const header = rows[0].map(h => String(h || '').trim().toLowerCase());
+  if (header.includes('is pending')) return rowsToTickets(rows);
+  if (header.includes('ticket_id') && header.includes('ticket_status')) return rawDumpToTickets(rows);
+  throw new Error('Unrecognized column layout — expected either the "My Pending Tickets" export (starts with "Is Pending") or the raw daily dump (has "ticket_id" and "ticket_status" columns).');
+}
+
+// ---- Init ----
+async function loadLatest(isManualRefresh){
+  if (isManualRefresh) {
+    el('uploadStatus').textContent = 'Refreshing…';
+    el('uploadStatus').classList.remove('ok');
+  }
+  const saved = await loadFromStorage();
+  if (saved && Array.isArray(saved.data) && saved.data.length > 0) {
+    RAW = saved.data;
+    const savedWhen = saved.meta && saved.meta.savedAt ? new Date(saved.meta.savedAt).toLocaleString() : new Date().toLocaleString();
+    el('uploadStatus').textContent = 'Live';
+    el('uploadStatus').classList.add('ok');
+    el('asOfText').innerHTML = 'Last updated: ' + savedWhen + ' &middot; <a href="#" id="resetLink" style="color:#7FD8CC;">reset to bundled snapshot</a>';
+    const resetLink = document.getElementById('resetLink');
+    if (resetLink) resetLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await clearStorage();
+      RAW = SEED;
+      rebuildFilterOptions();
+      el('uploadStatus').textContent = 'Live';
+      el('uploadStatus').classList.remove('ok');
+      el('asOfText').textContent = 'Last updated: ' + new Date().toLocaleString();
+      currentKpiFilter = 'all';
+      render();
+    });
+  } else {
+    RAW = SEED;
+    el('uploadStatus').textContent = 'Live';
+    el('uploadStatus').classList.remove('ok');
+    el('asOfText').textContent = 'Last updated: ' + new Date().toLocaleString();
+  }
+  rebuildFilterOptions();
+  currentKpiFilter = currentKpiFilter || 'all';
+  render();
+}
+
+el('refreshBtn').addEventListener('click', async () => {
+  const gotSheet = await fetchFromGoogleSheet(true);
+  if (!gotSheet && !GOOGLE_SHEET_CSV_URL) await loadLatest(true);
+});
+
+async function boot(){
+  const gotSheet = await fetchFromGoogleSheet(false);
+  if (gotSheet) {
+    // Live Google Sheet data loaded — keep it fresh automatically.
+    setInterval(() => fetchFromGoogleSheet(false), 3 * 60 * 1000);
+    return;
+  }
+  // No Google Sheet configured (or it failed) — fall back to the old
+  // upload/shared-storage flow, which only works inside a Claude artifact.
+  if (!HAS_SHARED_STORAGE) {
+    el('uploadStatus').textContent = 'No Google Sheet configured — see the footer note below to set one up so everyone sees the same data.';
+  }
+  await loadLatest(false);
+}
+boot();
+</script>
+</body>
+</html>
